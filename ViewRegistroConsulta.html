@@ -1,0 +1,124 @@
+<!-- ========================================================================
+     CONSULTA E PESQUISA DE REGISTROS DE ATIVIDADES
+     ======================================================================== -->
+<section id="view-consulta" class="view-pane">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+    <div>
+      <h2 style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 700;">Consulta de Registros Diários</h2>
+      <p style="font-size: 0.85rem; color: var(--text-secondary);">Pesquisa e histórico dos Livros de Registro de Atividades do Corpo de Bombeiros</p>
+    </div>
+    <button class="btn btn-primary" onclick="App.abrirNovoRegistro()">
+      ➕ Novo Registro Diário
+    </button>
+  </div>
+
+  <!-- Barra de Filtros -->
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header">
+      <h3>🔍 Filtros de Pesquisa</h3>
+      <button class="btn btn-secondary btn-sm" onclick="App.limparFiltrosConsulta()">Limpar Filtros</button>
+    </div>
+
+    <div class="form-row-grid">
+      <div class="form-group">
+        <label class="form-label" for="filtro-numero">Nº do Registro:</label>
+        <input type="text" class="form-input" id="filtro-numero" placeholder="Ex: LRA-2026-0001">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="filtro-data-ini">Data Inicial:</label>
+        <input type="date" class="form-input" id="filtro-data-ini">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="filtro-data-fim">Data Final:</label>
+        <input type="date" class="form-input" id="filtro-data-fim">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="filtro-prontidao">Prontidão:</label>
+        <select class="form-select" id="filtro-prontidao">
+          <option value="">Todas as Prontidões</option>
+          <option value="Verde">Verde</option>
+          <option value="Amarela">Amarela</option>
+          <option value="Azul">Azul</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row-grid" style="margin-bottom: 0;">
+      <div class="form-group">
+        <label class="form-label" for="filtro-sgb">SGB:</label>
+        <select class="form-select" id="filtro-sgb">
+          <option value="">Todos os SGBs</option>
+          <option value="1º SGB">1º SGB</option>
+          <option value="2º SGB">2º SGB</option>
+          <option value="3º SGB">3º SGB</option>
+          <option value="4º SGB">4º SGB</option>
+          <option value="5º SGB">5º SGB</option>
+          <option value="6º SGB">6º SGB</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="filtro-pb">Posto de Bombeiros (PB):</label>
+        <select class="form-select" id="filtro-pb">
+          <option value="">Todos os Postos</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="filtro-status">Status do Registro:</label>
+        <select class="form-select" id="filtro-status">
+          <option value="">Todos os Status</option>
+          <option value="Rascunho">Rascunho</option>
+          <option value="Em preenchimento">Em preenchimento</option>
+          <option value="Aguardando conferência">Aguardando conferência</option>
+          <option value="Conferido">Conferido</option>
+          <option value="Finalizado">Finalizado</option>
+          <option value="Cancelado">Cancelado</option>
+        </select>
+      </div>
+      <div class="form-group" style="display: flex; align-items: flex-end;">
+        <button class="btn btn-primary" style="width: 100%;" onclick="App.executarPesquisaConsulta(1)">
+          🔎 Filtrar Registros
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabela de Resultados -->
+  <div class="card">
+    <div class="card-header">
+      <h3>📑 Resultados Encontrados</h3>
+      <span style="font-size: 0.85rem; color: var(--text-secondary);" id="consulta-total-display">0 registros</span>
+    </div>
+
+    <div class="table-container">
+      <table class="app-table">
+        <thead>
+          <tr>
+            <th>Nº Registro</th>
+            <th>Período do Serviço</th>
+            <th>Prontidão</th>
+            <th>SGB / PB</th>
+            <th>Comandante</th>
+            <th>Status</th>
+            <th>Última Atualização</th>
+            <th style="text-align: right;">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-consulta-registros">
+          <tr>
+            <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+              Utilize os filtros acima para pesquisar registros.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Paginação -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+      <span style="font-size: 0.82rem; color: var(--text-secondary);" id="paginacao-info">Página 1 de 1</span>
+      <div style="display: flex; gap: 0.5rem;" id="paginacao-botoes">
+        <!-- Botoes de paginação inseridos via JS -->
+      </div>
+    </div>
+  </div>
+</section>

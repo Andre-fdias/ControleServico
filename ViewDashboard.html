@@ -1,0 +1,102 @@
+<!-- ========================================================================
+     PAINEL PRINCIPAL / DASHBOARD OPERACIONAL
+     ======================================================================== -->
+<section id="view-dashboard" class="view-pane active">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+    <div>
+      <h2 style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 700;">Painel Operacional</h2>
+      <p style="font-size: 0.85rem; color: var(--text-secondary);">Visão geral dos registros diários de atividades do Corpo de Bombeiros</p>
+    </div>
+    <div style="display: flex; gap: 0.75rem;">
+      <button class="btn btn-secondary" onclick="App.carregarDashboard()">
+        🔄 Atualizar
+      </button>
+      <button class="btn btn-primary" onclick="App.abrirNovoRegistro()">
+        ➕ Novo Registro Diário
+      </button>
+    </div>
+  </div>
+
+  <!-- Cards de KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Total de Registros</div>
+      <div class="kpi-value" id="kpi-total">0</div>
+      <div class="kpi-subtext">Histórico cadastrado</div>
+    </div>
+    <div class="kpi-card kpi-info">
+      <div class="kpi-label">Em Preenchimento</div>
+      <div class="kpi-value" id="kpi-preenchimento">0</div>
+      <div class="kpi-subtext">Serviços em andamento</div>
+    </div>
+    <div class="kpi-card kpi-warning">
+      <div class="kpi-label">Aguardando Conferência</div>
+      <div class="kpi-value" id="kpi-conferencia">0</div>
+      <div class="kpi-subtext">Visto dos Comandantes</div>
+    </div>
+    <div class="kpi-card kpi-success">
+      <div class="kpi-label">Finalizados / Conferidos</div>
+      <div class="kpi-value" id="kpi-finalizados">0</div>
+      <div class="kpi-subtext">Prontos para arquivamento</div>
+    </div>
+  </div>
+
+  <!-- Prontidões e Unidades Ativas -->
+  <div class="card" style="margin-bottom: 2rem;">
+    <div class="card-header">
+      <h3>🎨 Registros por Prontidão e Efetivo</h3>
+      <span style="font-size: 0.8rem; color: var(--text-muted);" id="dashboard-timestamp">Atualizado agora</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+      <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); padding: 1rem; text-align: center;">
+        <span class="badge-prontidao badge-prontidao-verde">Prontidão Verde</span>
+        <div style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 700; color: #34d399; margin-top: 0.5rem;" id="pront-verde-count">0</div>
+      </div>
+      <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: var(--radius-md); padding: 1rem; text-align: center;">
+        <span class="badge-prontidao badge-prontidao-amarela">Prontidão Amarela</span>
+        <div style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 700; color: #fbbf24; margin-top: 0.5rem;" id="pront-amarela-count">0</div>
+      </div>
+      <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: var(--radius-md); padding: 1rem; text-align: center;">
+        <span class="badge-prontidao badge-prontidao-azul">Prontidão Azul</span>
+        <div style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 700; color: #60a5fa; margin-top: 0.5rem;" id="pront-azul-count">0</div>
+      </div>
+      <div style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1rem; text-align: center;">
+        <span style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 700;">Militares Cadastrados</span>
+        <div style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 700; color: var(--text-primary); margin-top: 0.5rem;" id="militares-count">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabela de Últimos Registros -->
+  <div class="card">
+    <div class="card-header">
+      <h3>📋 Últimos Registros Diários</h3>
+      <button class="btn btn-secondary btn-sm" onclick="App.navegarPara('view-consulta')">
+        Ver Todos os Registros →
+      </button>
+    </div>
+
+    <div class="table-container">
+      <table class="app-table">
+        <thead>
+          <tr>
+            <th>Nº Registro</th>
+            <th>Período do Serviço (24h)</th>
+            <th>Prontidão</th>
+            <th>SGB / PB</th>
+            <th>Cmt Prontidão</th>
+            <th>Status</th>
+            <th style="text-align: right;">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-ultimos-registros">
+          <tr>
+            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+              Carregando registros...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

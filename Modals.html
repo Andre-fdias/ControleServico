@@ -1,0 +1,201 @@
+<!-- ========================================================================
+     MODAIS DO SISTEMA
+     ======================================================================== -->
+
+<!-- MODAL 1: TROCA OBRIGATÓRIA DE SENHA NO PRIMEIRO ACESSO -->
+<div id="modal-troca-senha" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 style="color: var(--brand-amber);">🔒 Troca Obrigatória de Senha</h3>
+    </div>
+    <div class="modal-body">
+      <div class="login-info-box" style="margin-bottom: 1.25rem;">
+        <div class="login-info-icon">⚠️</div>
+        <div class="login-info-text">
+          Por determinação de segurança operacional, sua <strong>senha inicial provisória</strong> deve ser substituída antes de prosseguir no sistema.
+        </div>
+      </div>
+
+      <div id="troca-senha-error" class="login-error-alert" style="display: none;"></div>
+
+      <form id="form-troca-senha" onsubmit="event.preventDefault(); App.salvarTrocaSenha();">
+        <div class="form-group">
+          <label class="form-label" for="troca-senha-atual">Senha Atual (Provisória):</label>
+          <input type="password" class="form-input" id="troca-senha-atual" required placeholder="Digite sua credencial provisória">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="troca-senha-nova">Nova Senha Segura:</label>
+          <input type="password" class="form-input" id="troca-senha-nova" required placeholder="No mínimo 4 caracteres">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="troca-senha-confirma">Confirmar Nova Senha:</label>
+          <input type="password" class="form-input" id="troca-senha-confirma" required placeholder="Repita a nova senha">
+        </div>
+
+        <div class="modal-footer" style="padding-left: 0; padding-right: 0; background: none; border-top: none;">
+          <button type="submit" class="btn btn-primary" style="width: 100%;">
+            Confirmar e Ativar Minha Senha
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL 2: CANCELAR REGISTRO -->
+<div id="modal-cancelar-registro" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 style="color: var(--brand-red);">⚠️ Cancelar Registro Diário</h3>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="App.fecharModal('modal-cancelar-registro')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+        O cancelamento de um registro diário é uma operação auditada e restrita a administradores. Informe o motivo técnico-operacional:
+      </p>
+      <input type="hidden" id="cancelar-registro-id">
+      <div class="form-group">
+        <label class="form-label" for="cancelar-motivo">Motivo do Cancelamento:<span class="required">*</span></label>
+        <textarea class="form-textarea" id="cancelar-motivo" placeholder="Descreva detalhadamente a justificativa do cancelamento..." required style="min-height: 90px;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" onclick="App.fecharModal('modal-cancelar-registro')">Voltar</button>
+      <button type="button" class="btn btn-danger" onclick="App.confirmarCancelamentoRegistro()">Confirmar Cancelamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL 3: CADASTRO / EDIÇÃO DE MILITAR -->
+<div id="modal-militar" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="modal-militar-titulo">Cadastrar Bombeiro Militar</h3>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="App.fecharModal('modal-militar')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="form-modal-militar" onsubmit="event.preventDefault(); App.salvarMilitarModal();">
+        <input type="hidden" id="modal-mil-id">
+        <div class="form-row-grid">
+          <div class="form-group">
+            <label class="form-label" for="modal-mil-re">RE (6 Dígitos):<span class="required">*</span></label>
+            <input type="text" class="form-input" id="modal-mil-re" required placeholder="Ex: 108154">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="modal-mil-digito">Dígito:</label>
+            <input type="text" class="form-input" id="modal-mil-digito" maxlength="2" placeholder="Ex: 3">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="modal-mil-graduacao">Graduação / Posto:<span class="required">*</span></label>
+          <select class="form-select" id="modal-mil-graduacao" required>
+            <!-- Populado via script -->
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="modal-mil-nome">Nome Completo:<span class="required">*</span></label>
+          <input type="text" class="form-input" id="modal-mil-nome" required placeholder="Nome do militar">
+        </div>
+
+        <div class="form-row-grid">
+          <div class="form-group">
+            <label class="form-label" for="modal-mil-guerra">Nome de Guerra:</label>
+            <input type="text" class="form-input" id="modal-mil-guerra" placeholder="Ex: A. Dias">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="modal-mil-unidade">Unidade / SGB:</label>
+            <input type="text" class="form-input" id="modal-mil-unidade" placeholder="Ex: 2º SGB">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="modal-mil-ativo">Situação:</label>
+          <select class="form-select" id="modal-mil-ativo">
+            <option value="SIM">Ativo</option>
+            <option value="NAO">Inativo</option>
+          </select>
+        </div>
+
+        <div class="modal-footer" style="padding-left: 0; padding-right: 0; background: none; border-top: none;">
+          <button type="button" class="btn btn-secondary" onclick="App.fecharModal('modal-militar')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar Militar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL 4: CADASTRO / EDIÇÃO DE POSTO DE BOMBEIROS (PB) -->
+<div id="modal-posto" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="modal-posto-titulo">Cadastrar Posto de Bombeiros</h3>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="App.fecharModal('modal-posto')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="form-modal-posto" onsubmit="event.preventDefault(); App.salvarPostoModal();">
+        <input type="hidden" id="modal-pb-id">
+        <div class="form-group">
+          <label class="form-label" for="modal-pb-nome">Nome Oficial do Posto:<span class="required">*</span></label>
+          <input type="text" class="form-input" id="modal-pb-nome" required placeholder="Ex: Posto de Bombeiros de São Roque">
+        </div>
+        <div class="form-row-grid">
+          <div class="form-group">
+            <label class="form-label" for="modal-pb-sigla">Sigla:</label>
+            <input type="text" class="form-input" id="modal-pb-sigla" placeholder="Ex: PB São Roque">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="modal-pb-sgb">SGB:<span class="required">*</span></label>
+            <select class="form-select" id="modal-pb-sgb" required>
+              <option value="1º SGB">1º SGB</option>
+              <option value="2º SGB">2º SGB</option>
+              <option value="3º SGB">3º SGB</option>
+              <option value="4º SGB">4º SGB</option>
+              <option value="5º SGB">5º SGB</option>
+              <option value="6º SGB">6º SGB</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row-grid">
+          <div class="form-group">
+            <label class="form-label" for="modal-pb-gb">Grupamento:</label>
+            <select class="form-select" id="modal-pb-gb">
+              <!-- Populado via script -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="modal-pb-municipio">Município:</label>
+            <input type="text" class="form-input" id="modal-pb-municipio" placeholder="Ex: São Roque">
+          </div>
+        </div>
+        <div class="modal-footer" style="padding-left: 0; padding-right: 0; background: none; border-top: none;">
+          <button type="button" class="btn btn-secondary" onclick="App.fecharModal('modal-posto')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar Posto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL 5: PRÉVIA E IMPRESSÃO OFICIAL (FRENTE E VERSO) -->
+<div id="modal-impressao" class="modal-overlay">
+  <div class="modal-card modal-card-lg" style="height: 95vh; max-width: 950px;">
+    <div class="modal-header">
+      <h3>🖨️ Visualização do Formulário Oficial para Impressão</h3>
+      <div style="display: flex; gap: 0.5rem;">
+        <button type="button" class="btn btn-primary btn-sm" onclick="App.executarImpressaoNavegador()">
+          🖨️ Imprimir (A4)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="App.fecharModal('modal-impressao')">✕ Fechar</button>
+      </div>
+    </div>
+    <div class="modal-body" style="background: #2b3544; padding: 1.5rem; display: flex; justify-content: center;">
+      <!-- O container com as 2 páginas oficiais inseridas via ViewImpressao.html -->
+      <div id="conteudo-impressao-render" style="max-width: 820px; width: 100%;"></div>
+    </div>
+  </div>
+</div>

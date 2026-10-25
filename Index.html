@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Livro de Registro de Atividades — Corpo de Bombeiros PMESP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <?!= include('Styles') ?>
+</head>
+<body>
+
+  <!-- ==================== CABEÇALHO SUPERIOR DA APLICAÇÃO ==================== -->
+  <header class="app-header no-print">
+    <div class="header-container">
+      <div class="brand-group" onclick="App.navegarPara('view-dashboard')">
+        <div class="brand-badge">🚒</div>
+        <div class="brand-title">
+          <h1>Corpo de Bombeiros</h1>
+          <p>Livro de Registro de Atividades • PMESP</p>
+        </div>
+      </div>
+
+      <div class="user-badge-group">
+        <div class="user-pill">
+          <span style="font-size: 0.95rem;">👮</span>
+          <div>
+            <strong id="header-user-nome" style="font-size: 0.85rem; color: #fff;">Militar</strong>
+            <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">RE: <span id="header-user-re">------</span></span>
+          </div>
+          <span class="user-role-tag role-operacional" id="header-user-role-tag">OPERACIONAL</span>
+        </div>
+
+        <button type="button" class="btn btn-secondary btn-sm" onclick="App.fazerLogout()" title="Sair do Sistema">
+          🚪 Sair
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== CONTAINER PRINCIPAL ==================== -->
+  <main class="main-wrapper">
+    <!-- Barra de Navegação por Abas -->
+    <nav class="nav-tabs no-print">
+      <button class="tab-btn active" id="nav-btn-dashboard" onclick="App.navegarPara('view-dashboard')">
+        📊 Painel Operacional
+      </button>
+      <button class="tab-btn" id="nav-btn-novo" onclick="App.abrirNovoRegistro()">
+        ➕ Novo Registro Diário
+      </button>
+      <button class="tab-btn" id="nav-btn-consulta" onclick="App.navegarPara('view-consulta')">
+        🔍 Consultar Registros
+      </button>
+      <button class="tab-btn" id="nav-btn-admin" style="display: none;" onclick="App.navegarPara('view-admin')">
+        ⚙️ Administração
+      </button>
+    </nav>
+
+    <!-- Visualizações do Sistema -->
+    <?!= include('ViewDashboard') ?>
+    <?!= include('ViewRegistroForm') ?>
+    <?!= include('ViewRegistroConsulta') ?>
+    <?!= include('ViewAdmin') ?>
+  </main>
+
+  <!-- ==================== TELAS E MODAIS ==================== -->
+  <?!= include('ViewLogin') ?>
+  <?!= include('Modals') ?>
+
+  <!-- Template Oficial de Impressão (invisível em tela normal, ativado na impressão) -->
+  <div style="display: none;">
+    <?!= include('ViewImpressao') ?>
+  </div>
+
+  <!-- Toast Notifications Container -->
+  <div class="toast-container no-print" id="toast-container"></div>
+
+  <!-- Overlay de Carregamento -->
+  <div class="loading-overlay no-print" id="loading-overlay">
+    <div class="spinner"></div>
+    <div style="color: #fff; font-family: var(--font-heading); font-size: 1rem; font-weight: 600;">
+      Processando operação...
+    </div>
+  </div>
+
+  <!-- Scripts JavaScript -->
+  <?!= include('Scripts') ?>
+</body>
+</html>

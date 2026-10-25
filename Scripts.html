@@ -1,0 +1,1860 @@
+<script>
+/**
+ * SISTEMA DIGITAL DO LIVRO DE REGISTRO DE ATIVIDADES (CBM - PMESP)
+ * Scripts.html - Gerenciador de estado, RPC cliente, validações e interações
+ */
+
+const App = (function() {
+  const STATE = {
+    token: null,
+    user: null,
+    initialData: null,
+    currentRegistroId: null,
+    currentRegistroData: null,
+    activeView: 'view-dashboard',
+    viaturasList: [],
+    armamentosList: [],
+    coletesList: [],
+    municoesList: [],
+    rondasList: []
+  };
+
+  /**
+   * Chamador de RPC seguro (Compatível com google.script.run e dev_server local)
+   */
+  function rpc(functionName, ...args) {
+    return new Promise((resolve, reject) => {
+      // 1. Ambiente Google Apps Script Web App
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler((res) => {
+            resolve(res);
+          })
+          .withFailureHandler((err) => {
+            reject(err);
+          })[functionName](...args);
+        return;
+      }
+
+      // 2. Ambiente de Desenvolvimento Local (Dev Server HTTP POST)
+      fetch(`/api/${functionName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(args)
+      })
+      .then(res => res.json())
+      .then(data => resolve(data))
+      .catch(err => reject(err));
+    });
+  }
+
+  /**
+   * Notificações Toast
+   */
+  function showToast(message, type = 'info', duration = 4000) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    
+    let icon = 'ℹ️';
+    if (type === 'success') icon = '✅';
+    else if (type === 'error') icon = '❌';
+
+    toast.innerHTML = `
+      <div style="font-size: 1.2rem;">${icon}</div>
+      <div style="flex: 1; font-size: 0.88rem;">${message}</div>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(100%)';
+      toast.style.transition = 'all 0.3s ease';
+      setTimeout(() => toast.remove(), 300);
+    }, duration);
+  }
+
+  function showLoading(show = true) {
+    const el = document.getElementById('loading-overlay');
+    if (el) el.style.display = show ? 'flex' : 'none';
+  }
+
+  function abrirModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('active');
+  }
+
+  function fecharModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active');
+  }
+
+  function togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    if (input.type === 'password') {
+      input.type = 'text';
+      btn.innerText = '🔒 Ocultar';
+    } else {
+      input.type = 'password';
+      btn.innerText = '👁️ Mostrar';
+    }
+  }
+
+  /**
+   * Navegação entre Visões
+   */
+  function navegarPara(viewId) {
+    const views = ['view-dashboard', 'view-registro-form', 'view-consulta', 'view-admin'];
+    views.forEach(v => {
+      const el = document.getElementById(v);
+      if (el) el.classList.remove('active');
+    });
+
+    const target = document.getElementById(viewId);
+    if (target) {
+      target.classList.add('active');
+      STATE.activeView = viewId;
+    }
+
+    // Atualiza botões da navbar
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    if (viewId === 'view-dashboard') {
+      const btn = document.getElementById('nav-btn-dashboard');
+      if (btn) btn.classList.add('active');
+      carregarDashboard();
+    } else if (viewId === 'view-consulta') {
+      const btn = document.getElementById('nav-btn-consulta');
+      if (btn) btn.classList.add('active');
+      executarPesquisaConsulta(1);
+    } else if (viewId === 'view-admin') {
+      const btn = document.getElementById('nav-btn-admin');
+      if (btn) btn.classList.add('active');
+      abrirAdminSubTab('militares');
+    }
+  }
+
+  /**
+   * Inicialização da Aplicação
+   */
+  async function init() {
+    // Verifica se há token salvo no sessionStorage
+    const savedToken = sessionStorage.getItem('cbm_session_token');
+    const savedUserJson = sessionStorage.getItem('cbm_session_user');
+
+    if (savedToken && savedUserJson) {
+      try {
+        STATE.token = savedToken;
+        STATE.user = JSON.parse(savedUserJson);
+        await carregarDadosIniciais();
+        aplicarSessaoAutenticada();
+        return;
+      } catch (e) {
+        sessionStorage.clear();
+      }
+    }
+
+    // Caso não autenticado, garante tela de login visível
+    document.getElementById('login-screen').style.display = 'flex';
+  }
+
+  /**
+   * Login Operacional
+   */
+  async function fazerLogin() {
+    const reInput = document.getElementById('login-re');
+    const senhaInput = document.getElementById('login-senha');
+    const errorBox = document.getElementById('login-error-alert');
+    const submitBtn = document.getElementById('btn-login-submit');
+
+    errorBox.style.display = 'none';
+
+    const username = reInput.value.trim();
+    const password = senhaInput.value.trim();
+
+    if (!username || !password) {
+      errorBox.innerText = 'Preencha seu RE e sua senha de acesso.';
+      errorBox.style.display = 'block';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Verificando...';
+
+    try {
+      const res = await rpc('apiLogin', username, password);
+
+      if (!res.success) {
+        errorBox.innerText = res.message || 'Falha de autenticação.';
+        errorBox.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Entrar no Sistema';
+        return;
+      }
+
+      STATE.token = res.token;
+      STATE.user = res.user;
+
+      sessionStorage.setItem('cbm_session_token', STATE.token);
+      sessionStorage.setItem('cbm_session_user', JSON.stringify(STATE.user));
+
+      await carregarDadosIniciais();
+      aplicarSessaoAutenticada();
+
+      // Verifica troca obrigatória de senha
+      if (res.user.forcar_troca_senha) {
+        abrirModal('modal-troca-senha');
+      }
+    } catch (err) {
+      errorBox.innerText = 'Erro de comunicação: ' + (err.message || err);
+      errorBox.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Entrar no Sistema';
+    }
+  }
+
+  /**
+   * Logout
+   */
+  async function fazerLogout() {
+    try {
+      if (STATE.token) {
+        await rpc('apiLogout', STATE.token);
+      }
+    } catch (e) {}
+
+    sessionStorage.clear();
+    STATE.token = null;
+    STATE.user = null;
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('login-senha').value = '';
+    showToast('Você saiu do sistema.', 'info');
+  }
+
+  /**
+   * Troca obrigatória de senha
+   */
+  async function salvarTrocaSenha() {
+    const atual = document.getElementById('troca-senha-atual').value;
+    const nova = document.getElementById('troca-senha-nova').value;
+    const confirma = document.getElementById('troca-senha-confirma').value;
+    const errBox = document.getElementById('troca-senha-error');
+
+    errBox.style.display = 'none';
+
+    if (nova.length < 4) {
+      errBox.innerText = 'A nova senha deve possuir pelo menos 4 caracteres.';
+      errBox.style.display = 'block';
+      return;
+    }
+
+    if (nova !== confirma) {
+      errBox.innerText = 'A confirmação não coincide com a nova senha.';
+      errBox.style.display = 'block';
+      return;
+    }
+
+    showLoading(true);
+    try {
+      const res = await rpc('apiChangePassword', STATE.token, atual, nova, confirma);
+      if (!res.success) {
+        errBox.innerText = res.message;
+        errBox.style.display = 'block';
+        return;
+      }
+
+      fecharModal('modal-troca-senha');
+      STATE.user.forcar_troca_senha = false;
+      sessionStorage.setItem('cbm_session_user', JSON.stringify(STATE.user));
+      showToast('Senha alterada com sucesso! Bem-vindo ao sistema.', 'success');
+    } catch (e) {
+      errBox.innerText = 'Falha ao alterar senha: ' + (e.message || e);
+      errBox.style.display = 'block';
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  /**
+   * Carrega metadados iniciais (Grupamentos, SGBs, Postos, Graduações)
+   */
+  async function carregarDadosIniciais() {
+    const res = await rpc('apiGetInitialData', STATE.token);
+    if (res.success) {
+      STATE.initialData = res;
+      popularSelectsGrupamentoEPosto(res);
+    }
+  }
+
+  function popularSelectsGrupamentoEPosto(data) {
+    // Select de Grupamento no formulário
+    const selGb = document.getElementById('reg-grupamento');
+    const selGbModal = document.getElementById('modal-pb-gb');
+    if (selGb && data.grupamentos) {
+      selGb.innerHTML = '';
+      if (selGbModal) selGbModal.innerHTML = '';
+      data.grupamentos.forEach(gb => {
+        const opt = document.createElement('option');
+        opt.value = gb.id;
+        opt.innerText = gb.nome;
+        if (gb.id === 'gb_15') opt.selected = true;
+        selGb.appendChild(opt);
+
+        if (selGbModal) {
+          const opt2 = opt.cloneNode(true);
+          selGbModal.appendChild(opt2);
+        }
+      });
+    }
+
+    // Select de Graduações no Modal de Militar
+    const selGrad = document.getElementById('modal-mil-graduacao');
+    if (selGrad && data.graduacoes) {
+      selGrad.innerHTML = '';
+      data.graduacoes.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g;
+        opt.innerText = g;
+        selGrad.appendChild(opt);
+      });
+    }
+
+    // Popula PBs conforme SGB selecionado
+    atualizarSelectPostos();
+  }
+
+  function atualizarSelectPostos() {
+    const sgb = document.getElementById('reg-sgb').value;
+    const selPb = document.getElementById('reg-pb');
+    const filtroPb = document.getElementById('filtro-pb');
+
+    if (!STATE.initialData || !STATE.initialData.postos) return;
+
+    if (selPb) {
+      selPb.innerHTML = '';
+      const filtrados = STATE.initialData.postos.filter(p => p.sgb === sgb);
+      filtrados.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.innerText = p.nome;
+        selPb.appendChild(opt);
+      });
+    }
+
+    if (filtroPb) {
+      filtroPb.innerHTML = '<option value="">Todos os Postos</option>';
+      STATE.initialData.postos.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.innerText = `${p.sigla} (${p.sgb})`;
+        filtroPb.appendChild(opt);
+      });
+    }
+  }
+
+  function onSgbChange() {
+    atualizarSelectPostos();
+  }
+
+  function onGrupamentoChange() {
+    const selGb = document.getElementById('reg-grupamento');
+    const disp = document.getElementById('header-grupamento-display');
+    if (selGb && disp) {
+      disp.innerText = selGb.options[selGb.selectedIndex].text.toUpperCase();
+    }
+  }
+
+  function aplicarSessaoAutenticada() {
+    document.getElementById('login-screen').style.display = 'none';
+
+    // Atualiza cabeçalho do usuário
+    const u = STATE.user;
+    document.getElementById('header-user-re').innerText = u.re;
+    document.getElementById('header-user-nome').innerText = u.nome_completo;
+
+    const tag = document.getElementById('header-user-role-tag');
+    tag.innerText = u.perfil.toUpperCase();
+    tag.className = `user-role-tag role-${u.perfil}`;
+
+    // Exibe ou oculta aba administrativa
+    const navAdmin = document.getElementById('nav-btn-admin');
+    if (navAdmin) {
+      navAdmin.style.display = u.perfil === 'admin' ? 'inline-flex' : 'none';
+    }
+
+    navegarPara('view-dashboard');
+  }
+
+  /**
+   * Cálculo de término 24h e Prontidão
+   */
+  async function onDataInicioChange() {
+    const dataInicio = document.getElementById('reg-data-inicio').value;
+    const horaInicio = document.getElementById('reg-hora-inicio').value || '07:30';
+
+    if (!dataInicio) return;
+
+    try {
+      const res = await rpc('apiCalculateProntidao', dataInicio, horaInicio);
+      if (res.success && res.data) {
+        document.getElementById('reg-data-termino').value = res.data.data_termino;
+        document.getElementById('reg-hora-termino').value = res.data.hora_termino;
+        
+        const selPront = document.getElementById('reg-prontidao-select');
+        selPront.value = res.data.prontidao;
+        atualizarBadgeProntidao(res.data.prontidao);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function onProntidaoManualChange() {
+    const p = document.getElementById('reg-prontidao-select').value;
+    atualizarBadgeProntidao(p);
+  }
+
+  function atualizarBadgeProntidao(cor) {
+    const badge = document.getElementById('reg-badge-prontidao');
+    if (!badge) return;
+    badge.innerText = `Prontidão ${cor}`;
+    badge.className = `badge-prontidao badge-prontidao-${cor.toLowerCase()}`;
+  }
+
+  /**
+   * Busca Autocomplete Comandante de Prontidão por RE
+   */
+  async function buscarComandanteAutocomplete(query) {
+    const container = document.getElementById('autocomplete-cmt-results');
+    if (!query || query.trim().length < 2) {
+      container.style.display = 'none';
+      return;
+    }
+
+    try {
+      const res = await rpc('apiSearchMilitares', query);
+      if (res.success && res.results.length > 0) {
+        container.innerHTML = '';
+        res.results.forEach(m => {
+          const item = document.createElement('div');
+          item.className = 'autocomplete-item';
+          item.innerText = m.display_formatado;
+          item.onclick = () => {
+            document.getElementById('reg-cmt-re').value = m.re;
+            document.getElementById('reg-cmt-display').value = m.display_formatado;
+            document.getElementById('reg-cmt-graduacao').value = m.graduacao;
+            document.getElementById('reg-cmt-nome').value = m.nome_completo;
+            container.style.display = 'none';
+          };
+          container.appendChild(item);
+        });
+        container.style.display = 'block';
+      } else {
+        container.style.display = 'none';
+      }
+    } catch (e) {
+      container.style.display = 'none';
+    }
+  }
+
+  /**
+   * Busca rápida de instrutores
+   */
+  async function buscarInstrutorSec7(re) {
+    if (re.length >= 4) {
+      const res = await rpc('apiFindMilitarByRE', re);
+      if (res.success && res.militar) {
+        document.getElementById('sec7-instrutor-nome').value = `${res.militar.graduacao} ${res.militar.nome_completo}`;
+      }
+    }
+  }
+
+  async function buscarInstrutorSec8(re) {
+    if (re.length >= 4) {
+      const res = await rpc('apiFindMilitarByRE', re);
+      if (res.success && res.militar) {
+        document.getElementById('sec8-instrutor-nome').value = `${res.militar.graduacao} ${res.militar.nome_completo}`;
+      }
+    }
+  }
+
+  async function buscarInstrutorSec9(re) {
+    if (re.length >= 4) {
+      const res = await rpc('apiFindMilitarByRE', re);
+      if (res.success && res.militar) {
+        document.getElementById('sec9-instrutor-nome').value = `${res.militar.graduacao} ${res.militar.nome_completo}`;
+      }
+    }
+  }
+
+  function toggleAccordion(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('active');
+  }
+
+  // ========================================================================
+  // REPEATABLE ITEMS (Armamento, Colete, Munição, Viaturas, Rondas)
+  // ========================================================================
+
+  function adicionarArmamento(tipo = '', modelo = '', marca = '', serie = '') {
+    const container = document.getElementById('container-armamentos');
+    const card = document.createElement('div');
+    card.className = 'repeatable-item-card armamento-item';
+    card.innerHTML = `
+      <div class="repeatable-header">
+        <strong style="font-size: 0.82rem; color: var(--text-secondary);">Item de Armamento</strong>
+        <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.repeatable-item-card').remove()">Remover</button>
+      </div>
+      <div class="form-row-grid" style="margin-bottom: 0;">
+        <input type="text" class="form-input arm-tipo" placeholder="Tipo (Ex: Pistola)" value="${tipo}">
+        <input type="text" class="form-input arm-modelo" placeholder="Modelo (Ex: PT 24/7)" value="${modelo}">
+        <input type="text" class="form-input arm-marca" placeholder="Marca (Ex: Taurus)" value="${marca}">
+        <input type="text" class="form-input arm-serie" placeholder="Nº de Série" value="${serie}">
+      </div>
+    `;
+    container.appendChild(card);
+  }
+
+  function adicionarColete(tamanho = '', qtd = 1, capas = '', serie = '') {
+    const container = document.getElementById('container-coletes');
+    const card = document.createElement('div');
+    card.className = 'repeatable-item-card colete-item';
+    card.innerHTML = `
+      <div class="repeatable-header">
+        <strong style="font-size: 0.82rem; color: var(--text-secondary);">Colete Balístico</strong>
+        <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.repeatable-item-card').remove()">Remover</button>
+      </div>
+      <div class="form-row-grid" style="margin-bottom: 0;">
+        <input type="text" class="form-input col-tamanho" placeholder="Tamanho (Ex: M, G)" value="${tamanho}">
+        <input type="number" min="1" class="form-input col-qtd" placeholder="Qtd" value="${qtd}">
+        <input type="text" class="form-input col-capas" placeholder="Capas / Estado" value="${capas}">
+        <input type="text" class="form-input col-serie" placeholder="Nº de Série" value="${serie}">
+      </div>
+    `;
+    container.appendChild(card);
+  }
+
+  function adicionarMunicao(tipo = '', qtd = 0) {
+    const container = document.getElementById('container-municoes');
+    const card = document.createElement('div');
+    card.className = 'repeatable-item-card municao-item';
+    card.innerHTML = `
+      <div class="repeatable-header">
+        <strong style="font-size: 0.82rem; color: var(--text-secondary);">Munição</strong>
+        <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.repeatable-item-card').remove()">Remover</button>
+      </div>
+      <div class="form-row-grid" style="margin-bottom: 0;">
+        <input type="text" class="form-input mun-tipo" placeholder="Tipo (Ex: .40 CBC)" value="${tipo}">
+        <input type="number" min="0" class="form-input mun-qtd" placeholder="Quantidade" value="${qtd}">
+      </div>
+    `;
+    container.appendChild(card);
+  }
+
+  function adicionarViatura(prefixo = '', situacao = 'Operando', obs = '') {
+    const container = document.getElementById('container-viaturas');
+    const card = document.createElement('div');
+    card.className = 'repeatable-item-card viatura-item';
+    card.innerHTML = `
+      <div class="repeatable-header">
+        <strong style="font-size: 0.82rem; color: var(--text-secondary);">Viatura Operacional</strong>
+        <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.repeatable-item-card').remove(); App.atualizarTotaisViaturas();">Remover</button>
+      </div>
+      <div class="form-row-grid" style="margin-bottom: 0;">
+        <input type="text" class="form-input vtr-prefixo" placeholder="Prefixo (Ex: UR-15201)" value="${prefixo}">
+        <select class="form-select vtr-situacao" onchange="App.atualizarTotaisViaturas()">
+          <option value="Operando" ${situacao === 'Operando' ? 'selected' : ''}>Operando</option>
+          <option value="Baixada" ${situacao === 'Baixada' ? 'selected' : ''}>Baixada</option>
+          <option value="Reserva" ${situacao === 'Reserva' ? 'selected' : ''}>Reserva</option>
+          <option value="Acidentada" ${situacao === 'Acidentada' ? 'selected' : ''}>Acidentada</option>
+        </select>
+        <input type="text" class="form-input vtr-obs" placeholder="Observações (Ex: Pronta resposta)" value="${obs}">
+      </div>
+    `;
+    container.appendChild(card);
+    atualizarTotaisViaturas();
+  }
+
+  function atualizarTotaisViaturas() {
+    let op = 0, bx = 0, res = 0, ac = 0;
+    document.querySelectorAll('.viatura-item').forEach(card => {
+      const sit = card.querySelector('.vtr-situacao').value;
+      if (sit === 'Operando') op++;
+      else if (sit === 'Baixada') bx++;
+      else if (sit === 'Reserva') res++;
+      else if (sit === 'Acidentada') ac++;
+    });
+
+    document.getElementById('total-vtr-operando').innerText = op;
+    document.getElementById('total-vtr-baixada').innerText = bx;
+    document.getElementById('total-vtr-reserva').innerText = res;
+    document.getElementById('total-vtr-acidentada').innerText = ac;
+  }
+
+  function adicionarRonda(ordem = 1, funcao = 'Ronda Diurna', posto = '', hora = '10:00', re = '', nome = '', novidades = '') {
+    const container = document.getElementById('container-rondas');
+    const card = document.createElement('div');
+    card.className = 'repeatable-item-card ronda-item';
+    card.innerHTML = `
+      <div class="repeatable-header">
+        <strong style="font-size: 0.82rem; color: var(--text-secondary);">Ronda Efetuada</strong>
+        <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.repeatable-item-card').remove()">Remover</button>
+      </div>
+      <div class="form-row-grid">
+        <input type="text" class="form-input r-funcao" placeholder="Função (Ex: Ronda Diurna)" value="${funcao}">
+        <input type="text" class="form-input r-posto" placeholder="Posto" value="${posto}">
+        <input type="text" class="form-input r-hora" placeholder="Data/Hora" value="${hora}">
+      </div>
+      <div class="form-row-grid">
+        <input type="text" class="form-input r-re" placeholder="RE Responsável" value="${re}" onchange="App.buscarNomeRonda(this)">
+        <input type="text" class="form-input r-nome" placeholder="Nome Completo do Responsável" value="${nome}">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <textarea class="form-textarea r-novidades" placeholder="Novidades encontradas e sugestões...">${novidades}</textarea>
+      </div>
+    `;
+    container.appendChild(card);
+  }
+
+  async function buscarNomeRonda(input) {
+    const re = input.value.trim();
+    if (re.length >= 4) {
+      const res = await rpc('apiFindMilitarByRE', re);
+      if (res.success && res.militar) {
+        const row = input.closest('.repeatable-item-card');
+        row.querySelector('.r-nome').value = `${res.militar.graduacao} ${res.militar.nome_completo}`;
+      }
+    }
+  }
+
+  // ========================================================================
+  // NOVO REGISTRO / ABRIR REGISTRO EXISTENTE
+  // ========================================================================
+
+  function abrirNovoRegistro() {
+    STATE.currentRegistroId = null;
+    STATE.currentRegistroData = null;
+
+    document.getElementById('form-titulo').innerText = 'Novo Livro de Registro';
+    document.getElementById('form-subtitulo').innerText = 'Preencha o cabeçalho e as seções para iniciar o serviço';
+    document.getElementById('reg-id').value = '';
+    document.getElementById('reg-numero').value = '';
+
+    // Data de hoje padrão
+    const hoje = new Date().toISOString().split('T')[0];
+    document.getElementById('reg-data-inicio').value = hoje;
+    document.getElementById('reg-hora-inicio').value = '07:30';
+
+    onDataInicioChange();
+
+    // Limpa seções
+    document.getElementById('sec1-falta').value = 0;
+    document.getElementById('sec1-baixas').value = 0;
+    document.getElementById('sec1-visitantes').value = 0;
+    document.getElementById('sec1-licenca').value = 0;
+    document.getElementById('sec1-restricao').value = 0;
+    document.getElementById('sec1-estagiarios').value = 0;
+    document.getElementById('sec1-complemento').value = '';
+
+    document.getElementById('container-armamentos').innerHTML = '';
+    document.getElementById('container-coletes').innerHTML = '';
+    document.getElementById('container-municoes').innerHTML = '';
+    document.getElementById('sec2-outros').value = '';
+
+    document.getElementById('sec3-novidade').value = '';
+    document.getElementById('container-viaturas').innerHTML = '';
+    atualizarTotaisViaturas();
+
+    document.getElementById('sec5-ordem-dia').value = '';
+    document.getElementById('sec6-verbais').value = '';
+    document.getElementById('sec6-escritas').value = '';
+
+    document.getElementById('sec7-treinamento').value = '';
+    document.getElementById('sec7-pops').value = '';
+    document.getElementById('sec7-instrutor-re').value = '';
+    document.getElementById('sec7-instrutor-nome').value = '';
+    document.getElementById('sec7-participantes').value = '';
+    document.getElementById('sec7-materiais').value = '';
+    document.getElementById('sec7-observacoes').value = '';
+
+    document.getElementById('sec8-assunto').value = '';
+    document.getElementById('sec8-instrutor-re').value = '';
+    document.getElementById('sec8-instrutor-nome').value = '';
+    document.getElementById('sec8-participantes').value = '';
+    document.getElementById('sec8-literatura').value = '';
+    document.getElementById('sec8-observacoes').value = '';
+
+    document.getElementById('sec9-atividades').value = '';
+    document.getElementById('sec9-instrutor-re').value = '';
+    document.getElementById('sec9-instrutor-nome').value = '';
+    document.getElementById('sec9-observacoes').value = '';
+
+    document.getElementById('sec10-limpeza').value = '';
+    document.getElementById('sec10-melhoria').value = '';
+    document.getElementById('sec10-energia').value = '';
+    document.getElementById('sec10-hidrometro').value = '';
+
+    document.getElementById('sec11-ocorrencias').value = '';
+
+    document.getElementById('container-rondas').innerHTML = '';
+    // Adiciona 2 rondas padrão como no documento
+    adicionarRonda(1, 'Ronda Diurna', '', '10:00');
+    adicionarRonda(2, 'Ronda Noturna', '', '22:00');
+
+    // Limpa conferências
+    renderConferencias(null);
+
+    document.getElementById('btn-finalizar-registro').style.display = 'none';
+
+    navegarPara('view-registro-form');
+  }
+
+  function voltarDoFormulario() {
+    navegarPara('view-dashboard');
+  }
+
+  async function carregarRegistroPorId(registroId) {
+    showLoading(true);
+    try {
+      const res = await rpc('apiGetRegistro', registroId, STATE.token);
+      if (!res.success) {
+        showToast(res.message, 'error');
+        return;
+      }
+
+      preencherFormularioComRegistro(res.registro);
+      navegarPara('view-registro-form');
+    } catch (e) {
+      showToast('Falha ao abrir registro: ' + (e.message || e), 'error');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  function preencherFormularioComRegistro(data) {
+    STATE.currentRegistroId = data.header.id;
+    STATE.currentRegistroData = data;
+
+    const h = data.header;
+    document.getElementById('form-titulo').innerText = `Livro de Registro: ${h.numero_registro}`;
+    document.getElementById('form-subtitulo').innerText = `Serviço de ${h.data_inicio} às ${h.hora_inicio} para ${h.data_termino} às ${h.hora_termino}`;
+    document.getElementById('reg-id').value = h.id;
+    document.getElementById('reg-numero').value = h.numero_registro;
+
+    document.getElementById('reg-sgb').value = h.sgb;
+    atualizarSelectPostos();
+    document.getElementById('reg-pb').value = h.pb_id;
+
+    document.getElementById('reg-data-inicio').value = h.data_inicio;
+    document.getElementById('reg-hora-inicio').value = h.hora_inicio;
+    document.getElementById('reg-data-termino').value = h.data_termino;
+    document.getElementById('reg-hora-termino').value = h.hora_termino;
+
+    document.getElementById('reg-prontidao-select').value = h.prontidao;
+    atualizarBadgeProntidao(h.prontidao);
+
+    document.getElementById('reg-cmt-re').value = h.cmt_re;
+    document.getElementById('reg-cmt-display').value = `${h.cmt_graduacao} ${h.cmt_re} ${h.cmt_nome}`;
+    document.getElementById('reg-cmt-graduacao').value = h.cmt_graduacao;
+    document.getElementById('reg-cmt-nome').value = h.cmt_nome;
+
+    // Status Badge
+    const stBadge = document.getElementById('badge-registro-status');
+    stBadge.innerText = h.status;
+    stBadge.className = `status-badge badge-${h.status.toLowerCase().replace(/\s+/g, '-')}`;
+
+    // Seção 1
+    const p = data.pessoal;
+    document.getElementById('sec1-falta').value = p.falta || 0;
+    document.getElementById('sec1-baixas').value = p.baixas || 0;
+    document.getElementById('sec1-visitantes').value = p.visitantes || 0;
+    document.getElementById('sec1-licenca').value = p.licenca_convalescenca || 0;
+    document.getElementById('sec1-restricao').value = p.restricao || 0;
+    document.getElementById('sec1-estagiarios').value = p.estagiarios || 0;
+    document.getElementById('sec1-complemento').value = p.complemento || '';
+
+    // Seção 2
+    document.getElementById('container-armamentos').innerHTML = '';
+    if (data.materiais_belicos && data.materiais_belicos.armamentos) {
+      data.materiais_belicos.armamentos.forEach(a => adicionarArmamento(a.tipo, a.modelo, a.marca, a.numero_serie));
+    }
+    document.getElementById('container-coletes').innerHTML = '';
+    if (data.materiais_belicos && data.materiais_belicos.coletes) {
+      data.materiais_belicos.coletes.forEach(c => adicionarColete(c.tamanho, c.quantidade, c.capas, c.numero_serie));
+    }
+    document.getElementById('container-municoes').innerHTML = '';
+    if (data.materiais_belicos && data.materiais_belicos.municoes) {
+      data.materiais_belicos.municoes.forEach(m => adicionarMunicao(m.tipo, m.quantidade));
+    }
+    document.getElementById('sec2-outros').value = (data.materiais_belicos && data.materiais_belicos.outros_materiais) || '';
+
+    // Seção 3
+    document.getElementById('sec3-novidade').value = data.novidades_materiais || '';
+
+    // Seção 4
+    document.getElementById('container-viaturas').innerHTML = '';
+    if (data.viaturas && data.viaturas.viaturas) {
+      data.viaturas.viaturas.forEach(v => adicionarViatura(v.prefixo, v.situacao, v.observacoes));
+    }
+    atualizarTotaisViaturas();
+
+    // Seção 5 e 6
+    document.getElementById('sec5-ordem-dia').value = data.ordem_dia || '';
+    document.getElementById('sec6-verbais').value = (data.ordens_recebidas && data.ordens_recebidas.verbais) || '';
+    document.getElementById('sec6-escritas').value = (data.ordens_recebidas && data.ordens_recebidas.escritas) || '';
+
+    // Seções 7, 8, 9
+    const t = data.treinamentos;
+    if (t) {
+      if (t.armar_geral) {
+        document.getElementById('sec7-treinamento').value = t.armar_geral.treinamento_executado || '';
+        document.getElementById('sec7-pops').value = t.armar_geral.pops_normas || '';
+        document.getElementById('sec7-instrutor-re').value = t.armar_geral.instrutor_re || '';
+        document.getElementById('sec7-instrutor-nome').value = t.armar_geral.instrutor_nome || '';
+        document.getElementById('sec7-participantes').value = t.armar_geral.participantes_nomes || t.armar_geral.participantes_res || '';
+        document.getElementById('sec7-materiais').value = t.armar_geral.materiais_utilizados || '';
+        document.getElementById('sec7-observacoes').value = t.armar_geral.observacoes || '';
+      }
+      if (t.instrucao) {
+        document.getElementById('sec8-assunto').value = t.instrucao.assunto || '';
+        document.getElementById('sec8-instrutor-re').value = t.instrucao.instrutor_re || '';
+        document.getElementById('sec8-instrutor-nome').value = t.instrucao.instrutor_nome || '';
+        document.getElementById('sec8-participantes').value = t.instrucao.participantes_nomes || t.instrucao.participantes_res || '';
+        document.getElementById('sec8-literatura').value = t.instrucao.literatura_tecnica || '';
+        document.getElementById('sec8-observacoes').value = t.instrucao.observacoes || '';
+      }
+      if (t.treinamento_fisico) {
+        document.getElementById('sec9-atividades').value = t.treinamento_fisico.atividades_realizadas || '';
+        document.getElementById('sec9-instrutor-re').value = t.treinamento_fisico.instrutor_re || '';
+        document.getElementById('sec9-instrutor-nome').value = t.treinamento_fisico.instrutor_nome || '';
+        document.getElementById('sec9-observacoes').value = t.treinamento_fisico.observacoes || '';
+      }
+    }
+
+    // Seção 10, 11
+    if (data.manutencao) {
+      document.getElementById('sec10-limpeza').value = data.manutencao.limpeza || '';
+      document.getElementById('sec10-melhoria').value = data.manutencao.melhoria || '';
+      document.getElementById('sec10-energia').value = data.manutencao.medidor_energia || '';
+      document.getElementById('sec10-hidrometro').value = data.manutencao.hidrometro || '';
+    }
+    document.getElementById('sec11-ocorrencias').value = data.ocorrencias || '';
+
+    // Seção 12
+    document.getElementById('container-rondas').innerHTML = '';
+    if (data.rondas && data.rondas.length > 0) {
+      data.rondas.forEach(r => adicionarRonda(r.ordem, r.funcao, r.posto, r.data_hora, r.responsavel_re, r.responsavel_nome, r.novidades_sugestoes));
+    }
+
+    // Conferências
+    renderConferencias(data.conferencias);
+
+    // Botão Finalizar
+    const btnFin = document.getElementById('btn-finalizar-registro');
+    if (h.status === 'Conferido' || STATE.user.perfil === 'admin') {
+      btnFin.style.display = h.status === 'Finalizado' ? 'none' : 'inline-flex';
+    } else {
+      btnFin.style.display = 'none';
+    }
+  }
+
+  function renderConferencias(confs) {
+    const boxSai = document.getElementById('box-conf-cmt-sai');
+    const boxEntra = document.getElementById('box-conf-cmt-entra');
+    const boxPb = document.getElementById('box-conf-cmt-pb');
+
+    const btnSai = document.getElementById('btn-conf-sai');
+    const btnEntra = document.getElementById('btn-conf-entra');
+    const btnPb = document.getElementById('btn-conf-pb');
+
+    function fillBlock(box, btn, conf, tagId, gradId, reId, nomeId, dataId) {
+      if (conf) {
+        box.classList.add('conferido');
+        document.getElementById(tagId).innerHTML = '<span class="status-badge badge-finalizado">Assinado / Visto</span>';
+        document.getElementById(gradId).innerText = conf.autoridade_graduacao || '-';
+        document.getElementById(reId).innerText = conf.autoridade_re || '-';
+        document.getElementById(nomeId).innerText = conf.autoridade_nome || '-';
+        document.getElementById(dataId).innerText = 'Data/Hora: ' + new Date(conf.data_hora).toLocaleString('pt-BR');
+        btn.innerText = '✔️ Assinado';
+        btn.disabled = true;
+      } else {
+        box.classList.remove('conferido');
+        document.getElementById(tagId).innerHTML = '<span class="status-badge badge-rascunho">Pendente</span>';
+        document.getElementById(gradId).innerText = '-';
+        document.getElementById(reId).innerText = '-';
+        document.getElementById(nomeId).innerText = '-';
+        document.getElementById(dataId).innerText = 'Data/Hora: Não assinado';
+        btn.innerText = 'Assinar Eletronicamente';
+        btn.disabled = false;
+      }
+    }
+
+    fillBlock(boxSai, btnSai, confs ? confs.cmt_sai : null, 'tag-conf-cmt-sai', 'conf-sai-grad', 'conf-sai-re', 'conf-sai-nome', 'conf-sai-data');
+    fillBlock(boxEntra, btnEntra, confs ? confs.cmt_entra : null, 'tag-conf-cmt-entra', 'conf-entra-grad', 'conf-entra-re', 'conf-entra-nome', 'conf-entra-data');
+    fillBlock(boxPb, btnPb, confs ? confs.cmt_pb : null, 'tag-conf-cmt-pb', 'conf-pb-grad', 'conf-pb-re', 'conf-pb-nome', 'conf-pb-data');
+  }
+
+  /**
+   * Salvar Registro (Rascunho ou Gravação Completa)
+   */
+  async function salvarRegistroForm(isDraft = false) {
+    const dataInicio = document.getElementById('reg-data-inicio').value;
+    const sgb = document.getElementById('reg-sgb').value;
+    const pbId = document.getElementById('reg-pb').value;
+    const cmtRe = document.getElementById('reg-cmt-re').value;
+
+    if (!dataInicio || !sgb || !pbId) {
+      showToast('Preencha os campos obrigatórios do cabeçalho (Data, SGB e PB).', 'error');
+      return;
+    }
+
+    showLoading(true);
+    document.getElementById('form-save-indicator').innerText = 'Salvando no banco de dados...';
+
+    try {
+      let regId = STATE.currentRegistroId;
+
+      // 1. Se for novo registro, cria primeiro no backend
+      if (!regId) {
+        const createRes = await rpc('apiCreateRegistro', {
+          data_inicio: dataInicio,
+          hora_inicio: document.getElementById('reg-hora-inicio').value || '07:30',
+          sgb: sgb,
+          pb_id: pbId,
+          cmt_re: cmtRe,
+          isDraft: isDraft
+        }, STATE.token);
+
+        if (!createRes.success) {
+          if (createRes.isDuplicate) {
+            if (confirm(createRes.message)) {
+              await carregarRegistroPorId(createRes.existingId);
+            }
+            return;
+          }
+          showToast(createRes.message, 'error');
+          return;
+        }
+
+        regId = createRes.registro.id;
+        STATE.currentRegistroId = regId;
+        document.getElementById('reg-id').value = regId;
+        document.getElementById('reg-numero').value = createRes.registro.numero_registro;
+        document.getElementById('form-titulo').innerText = `Livro de Registro: ${createRes.registro.numero_registro}`;
+      }
+
+      // 2. Coleta dados de todas as seções
+      const armamentos = [];
+      document.querySelectorAll('.armamento-item').forEach(card => {
+        armamentos.push({
+          tipo: card.querySelector('.arm-tipo').value,
+          modelo: card.querySelector('.arm-modelo').value,
+          marca: card.querySelector('.arm-marca').value,
+          numero_serie: card.querySelector('.arm-serie').value
+        });
+      });
+
+      const coletes = [];
+      document.querySelectorAll('.colete-item').forEach(card => {
+        coletes.push({
+          tamanho: card.querySelector('.col-tamanho').value,
+          quantidade: card.querySelector('.col-qtd').value,
+          capas: card.querySelector('.col-capas').value,
+          numero_serie: card.querySelector('.col-serie').value
+        });
+      });
+
+      const municoes = [];
+      document.querySelectorAll('.municao-item').forEach(card => {
+        municoes.push({
+          tipo: card.querySelector('.mun-tipo').value,
+          quantidade: card.querySelector('.mun-qtd').value
+        });
+      });
+
+      const viaturas = [];
+      document.querySelectorAll('.viatura-item').forEach(card => {
+        viaturas.push({
+          prefixo: card.querySelector('.vtr-prefixo').value,
+          situacao: card.querySelector('.vtr-situacao').value,
+          observacoes: card.querySelector('.vtr-obs').value
+        });
+      });
+
+      const rondas = [];
+      document.querySelectorAll('.ronda-item').forEach((card, idx) => {
+        rondas.push({
+          ordem: idx + 1,
+          funcao: card.querySelector('.r-funcao').value,
+          posto: card.querySelector('.r-posto').value,
+          data_hora: card.querySelector('.r-hora').value,
+          responsavel_re: card.querySelector('.r-re').value,
+          responsavel_nome: card.querySelector('.r-nome').value,
+          novidades_sugestoes: card.querySelector('.r-novidades').value
+        });
+      });
+
+      const payload = {
+        header: {
+          cmt_re: cmtRe,
+          status: isDraft ? 'Rascunho' : 'Em preenchimento'
+        },
+        pessoal: {
+          falta: document.getElementById('sec1-falta').value,
+          baixas: document.getElementById('sec1-baixas').value,
+          visitantes: document.getElementById('sec1-visitantes').value,
+          licenca_convalescenca: document.getElementById('sec1-licenca').value,
+          restricao: document.getElementById('sec1-restricao').value,
+          estagiarios: document.getElementById('sec1-estagiarios').value,
+          complemento: document.getElementById('sec1-complemento').value
+        },
+        materiais_belicos: {
+          armamentos: armamentos,
+          coletes: coletes,
+          municoes: municoes,
+          outros_materiais: document.getElementById('sec2-outros').value
+        },
+        novidades_materiais: {
+          descricao: document.getElementById('sec3-novidade').value
+        },
+        viaturas: viaturas,
+        ordem_dia: document.getElementById('sec5-ordem-dia').value,
+        ordens_recebidas: {
+          verbais: document.getElementById('sec6-verbais').value,
+          escritas: document.getElementById('sec6-escritas').value
+        },
+        treinamentos: {
+          armar_geral: {
+            treinamento_executado: document.getElementById('sec7-treinamento').value,
+            pops_normas: document.getElementById('sec7-pops').value,
+            instrutor_re: document.getElementById('sec7-instrutor-re').value,
+            instrutor_nome: document.getElementById('sec7-instrutor-nome').value,
+            participantes_nomes: document.getElementById('sec7-participantes').value,
+            materiais_utilizados: document.getElementById('sec7-materiais').value,
+            observacoes: document.getElementById('sec7-observacoes').value
+          },
+          instrucao: {
+            assunto: document.getElementById('sec8-assunto').value,
+            instrutor_re: document.getElementById('sec8-instrutor-re').value,
+            instrutor_nome: document.getElementById('sec8-instrutor-nome').value,
+            participantes_nomes: document.getElementById('sec8-participantes').value,
+            literatura_tecnica: document.getElementById('sec8-literatura').value,
+            observacoes: document.getElementById('sec8-observacoes').value
+          },
+          treinamento_fisico: {
+            atividades_realizadas: document.getElementById('sec9-atividades').value,
+            instrutor_re: document.getElementById('sec9-instrutor-re').value,
+            instrutor_nome: document.getElementById('sec9-instrutor-nome').value,
+            observacoes: document.getElementById('sec9-observacoes').value
+          }
+        },
+        manutencao: {
+          limpeza: document.getElementById('sec10-limpeza').value,
+          melhorias: document.getElementById('sec10-melhoria').value,
+          medidor_energia: document.getElementById('sec10-energia').value,
+          medidor_energia_unidade: document.getElementById('sec10-energia-unid').value,
+          hidrometro: document.getElementById('sec10-hidrometro').value,
+          hidrometro_unidade: document.getElementById('sec10-hidrometro-unid').value
+        },
+        ocorrencias: document.getElementById('sec11-ocorrencias').value,
+        rondas: rondas
+      };
+
+      const saveRes = await rpc('apiSaveRegistro', regId, payload, STATE.token);
+
+      if (saveRes.success) {
+        preencherFormularioComRegistro(saveRes.registro);
+        document.getElementById('form-save-indicator').innerText = 'Salvo com sucesso';
+        showToast(isDraft ? 'Rascunho salvo com sucesso.' : 'Registro salvo e sincronizado na planilha.', 'success');
+      } else {
+        showToast(saveRes.message, 'error');
+      }
+    } catch (e) {
+      showToast('Erro ao salvar registro: ' + (e.message || e), 'error');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  /**
+   * Assinar Conferência Oficial
+   */
+  async function assinarConferencia(papelKey) {
+    if (!STATE.currentRegistroId) {
+      showToast('Grave o registro antes de assinar a conferência.', 'error');
+      return;
+    }
+
+    const papelNomes = {
+      cmt_sai: 'Comandante da Prontidão que Sai',
+      cmt_entra: 'Comandante da Prontidão que Entra',
+      cmt_pb: 'Comandante do Posto de Bombeiros'
+    };
+
+    if (!confirm(`Confirmar validação e aposição de visto oficial como ${papelNomes[papelKey]}?`)) {
+      return;
+    }
+
+    showLoading(true);
+    try {
+      const res = await rpc('apiValidarConferencia', STATE.currentRegistroId, papelKey, STATE.token, '');
+      if (res.success) {
+        showToast(`Conferência assinada com sucesso!`, 'success');
+        // Recarrega o registro
+        await carregarRegistroPorId(STATE.currentRegistroId);
+      } else {
+        showToast(res.message, 'error');
+      }
+    } catch (e) {
+      showToast('Falha na assinatura: ' + (e.message || e), 'error');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  /**
+   * Finalizar Registro Oficialmente
+   */
+  async function finalizarRegistroAtual() {
+    if (!confirm('Deseja finalizar oficialmente este Livro de Registro? Após a finalização, edições serão bloqueadas.')) {
+      return;
+    }
+
+    showLoading(true);
+    try {
+      const res = await rpc('apiFinalizarRegistro', STATE.currentRegistroId, STATE.token);
+      if (res.success) {
+        showToast('Registro finalizado com sucesso!', 'success');
+        await carregarRegistroPorId(STATE.currentRegistroId);
+      } else {
+        showToast(res.message, 'error');
+      }
+    } catch (e) {
+      showToast('Erro ao finalizar: ' + (e.message || e), 'error');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  // ========================================================================
+  // IMPRESSÃO OFICIAL (Anexo "D" à Dtz-003/932/11)
+  // ========================================================================
+
+  async function imprimirRegistroAtual() {
+    if (!STATE.currentRegistroData) {
+      showToast('Carregue ou grave o registro antes de imprimir.', 'error');
+      return;
+    }
+    abrirModalImpressaoComDados(STATE.currentRegistroData);
+  }
+
+  async function imprimirRegistroPorId(registroId) {
+    showLoading(true);
+    try {
+      const res = await rpc('apiGetRegistro', registroId, STATE.token);
+      if (res.success && res.registro) {
+        abrirModalImpressaoComDados(res.registro);
+      } else {
+        showToast('Não foi possível carregar o registro para impressão.', 'error');
+      }
+    } catch (e) {
+      showToast('Falha ao preparar impressão: ' + (e.message || e), 'error');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  function abrirModalImpressaoComDados(reg) {
+    const target = document.getElementById('conteudo-impressao-render');
+    const template = document.getElementById('print-document');
+
+    if (!target || !template) return;
+
+    // Clona o documento de impressão para o modal
+    target.innerHTML = template.outerHTML;
+    const doc = target.querySelector('#print-document');
+    doc.style.display = 'block';
+
+    const h = reg.header;
+
+    // Header Frente
+    doc.querySelector('#p-header-gb').innerText = (h.grupamento ? h.grupamento.toUpperCase() : '15º GRUPAMENTO DE BOMBEIROS');
+    doc.querySelector('#p-sgb').innerText = h.sgb || '-';
+    doc.querySelector('#p-pb').innerText = h.pb_nome || '-';
+    doc.querySelector('#p-servico-de').innerText = `${Utils.formatDateBR(h.data_inicio)} às ${h.hora_inicio}`;
+    doc.querySelector('#p-servico-para').innerText = `${Utils.formatDateBR(h.data_termino)} às ${h.hora_termino}`;
+    doc.querySelector('#p-prontidao').innerText = `PRONTIDÃO ${h.prontidao ? h.prontidao.toUpperCase() : '-'}`;
+    doc.querySelector('#p-cmt-prontidao').innerText = `${h.cmt_graduacao || ''} ${h.cmt_re || ''} ${h.cmt_nome || ''}`.trim() || '-';
+
+    // Seção 1
+    const pes = reg.pessoal || {};
+    doc.querySelector('#p-falta').innerText = pes.falta || 0;
+    doc.querySelector('#p-baixas').innerText = pes.baixas || 0;
+    doc.querySelector('#p-visitantes').innerText = pes.visitantes || 0;
+    doc.querySelector('#p-licenca').innerText = pes.licenca_convalescenca || 0;
+    doc.querySelector('#p-restricao').innerText = pes.restricao || 0;
+    doc.querySelector('#p-estagiarios').innerText = pes.estagiarios || 0;
+    doc.querySelector('#p-pessoal-complemento').innerText = pes.complemento || 'Sem alterações';
+
+    // Seção 2
+    const bel = reg.materiais_belicos || {};
+    if (bel.armamentos && bel.armamentos.length > 0) {
+      doc.querySelector('#p-col-armamento').innerHTML = bel.armamentos.map(a => `• ${a.tipo} ${a.modelo} ${a.marca} (Nº ${a.numero_serie})`).join('<br>');
+    }
+    if (bel.coletes && bel.coletes.length > 0) {
+      doc.querySelector('#p-col-colete').innerHTML = bel.coletes.map(c => `• Tam: ${c.tamanho} (Qtd: ${c.quantidade}) Capas: ${c.capas} Série: ${c.numero_serie}`).join('<br>');
+    }
+    if (bel.municoes && bel.municoes.length > 0) {
+      doc.querySelector('#p-col-municao').innerHTML = bel.municoes.map(m => `• ${m.tipo} (Qtd: ${m.quantidade})`).join('<br>');
+    }
+    doc.querySelector('#p-outros-belicos').innerText = bel.outros_materiais || 'Nenhum';
+
+    // Seção 3
+    doc.querySelector('#p-novidade-materiais').innerText = reg.novidades_materiais || 'Sem alterações.';
+
+    // Seção 4
+    const vtr = reg.viaturas || { viaturas: [], totais: {} };
+    const getVtrList = (sit) => vtr.viaturas.filter(v => v.situacao === sit).map(v => v.prefixo + (v.observacoes ? ` (${v.observacoes})` : '')).join(', ') || '-';
+    doc.querySelector('#p-vtr-operando-list').innerText = getVtrList('Operando');
+    doc.querySelector('#p-total-operando').innerText = (vtr.totais && vtr.totais.operando) || 0;
+
+    doc.querySelector('#p-vtr-baixada-list').innerText = getVtrList('Baixada');
+    doc.querySelector('#p-total-baixada').innerText = (vtr.totais && vtr.totais.baixada) || 0;
+
+    doc.querySelector('#p-vtr-reserva-list').innerText = getVtrList('Reserva');
+    doc.querySelector('#p-total-reserva').innerText = (vtr.totais && vtr.totais.reserva) || 0;
+
+    doc.querySelector('#p-vtr-acidentada-list').innerText = getVtrList('Acidentada');
+    doc.querySelector('#p-total-acidentada').innerText = (vtr.totais && vtr.totais.acidentada) || 0;
+
+    // Seção 5 e 6
+    doc.querySelector('#p-ordem-dia').innerText = reg.ordem_dia || 'Sem alterações.';
+    const ord = reg.ordens_recebidas || {};
+    doc.querySelector('#p-ordens-verbais').innerText = ord.verbais || 'Nenhuma';
+    doc.querySelector('#p-ordens-escritas').innerText = ord.escritas || 'Nenhuma';
+
+    // Seção 7
+    const tr = reg.treinamentos || {};
+    if (tr.armar_geral) {
+      doc.querySelector('#p-ag-treinamento').innerText = tr.armar_geral.treinamento_executado || '-';
+      doc.querySelector('#p-ag-pops').innerText = tr.armar_geral.pops_normas || '-';
+      doc.querySelector('#p-ag-instrutor').innerText = `${tr.armar_geral.instrutor_re || ''} ${tr.armar_geral.instrutor_nome || ''}`.trim() || '-';
+      doc.querySelector('#p-ag-participantes').innerText = tr.armar_geral.participantes_nomes || tr.armar_geral.participantes_res || '-';
+      doc.querySelector('#p-ag-materiais').innerText = tr.armar_geral.materiais_utilizados || '-';
+      doc.querySelector('#p-ag-obs').innerText = tr.armar_geral.observacoes || '-';
+    }
+
+    // VERSO - Seção 8, 9, 10, 11
+    if (tr.instrucao) {
+      doc.querySelector('#p-ins-assunto').innerText = tr.instrucao.assunto || '-';
+      doc.querySelector('#p-ins-instrutor').innerText = `${tr.instrucao.instrutor_re || ''} ${tr.instrucao.instrutor_nome || ''}`.trim() || '-';
+      doc.querySelector('#p-ins-participantes').innerText = tr.instrucao.participantes_nomes || tr.instrucao.participantes_res || '-';
+      doc.querySelector('#p-ins-literatura').innerText = tr.instrucao.literatura_tecnica || '-';
+      doc.querySelector('#p-ins-obs').innerText = tr.instrucao.observacoes || '-';
+    }
+
+    if (tr.treinamento_fisico) {
+      doc.querySelector('#p-tf-atividades').innerText = tr.treinamento_fisico.atividades_realizadas || '-';
+      doc.querySelector('#p-tf-instrutor').innerText = `${tr.treinamento_fisico.instrutor_re || ''} ${tr.treinamento_fisico.instrutor_nome || ''}`.trim() || '-';
+      doc.querySelector('#p-tf-obs').innerText = tr.treinamento_fisico.observacoes || '-';
+    }
+
+    const man = reg.manutencao || {};
+    doc.querySelector('#p-man-limpeza').innerText = man.limpeza || 'Sem novidades';
+    doc.querySelector('#p-man-melhoria').innerText = man.melhoria || 'Nenhuma';
+    doc.querySelector('#p-man-energia').innerText = `${man.medidor_energia || '-'} ${man.medidor_energia_unidade || 'kWh'}`;
+    doc.querySelector('#p-man-hidrometro').innerText = `${man.hidrometro || '-'} ${man.hidrometro_unidade || 'm³/h'}`;
+
+    doc.querySelector('#p-ocorrencias-sucinto').innerText = reg.ocorrencias || 'Sem alterações registradas.';
+
+    // Seção 12 - Rondas
+    const rondas = reg.rondas || [];
+    if (rondas.length > 0) {
+      const r1 = rondas[0];
+      doc.querySelector('#p-ronda1-funcao').innerText = r1.funcao || '-';
+      doc.querySelector('#p-ronda1-posto').innerText = r1.posto || '-';
+      doc.querySelector('#p-ronda1-datahora').innerText = r1.data_hora || '-';
+      doc.querySelector('#p-ronda1-nome').innerText = r1.responsavel_nome || r1.responsavel_re || '-';
+      doc.querySelector('#p-ronda1-novidades').innerText = r1.novidades_sugestoes || 'Sem alterações';
+      doc.querySelector('#p-ronda1-val').innerText = r1.validado_em ? `Visto por RE ${r1.responsavel_re} em ${new Date(r1.validado_em).toLocaleDateString('pt-BR')}` : 'Não assinado';
+    }
+    if (rondas.length > 1) {
+      const r2 = rondas[1];
+      doc.querySelector('#p-ronda2-funcao').innerText = r2.funcao || '-';
+      doc.querySelector('#p-ronda2-posto').innerText = r2.posto || '-';
+      doc.querySelector('#p-ronda2-datahora').innerText = r2.data_hora || '-';
+      doc.querySelector('#p-ronda2-nome').innerText = r2.responsavel_nome || r2.responsavel_re || '-';
+      doc.querySelector('#p-ronda2-novidades').innerText = r2.novidades_sugestoes || 'Sem alterações';
+      doc.querySelector('#p-ronda2-val').innerText = r2.validado_em ? `Visto por RE ${r2.responsavel_re} em ${new Date(r2.validado_em).toLocaleDateString('pt-BR')}` : 'Não assinado';
+    }
+
+    // Conferências finais
+    const conf = reg.conferencias || {};
+    if (conf.cmt_sai) {
+      doc.querySelector('#p-conf-sai-grad').innerText = conf.cmt_sai.autoridade_graduacao || '-';
+      doc.querySelector('#p-conf-sai-re').innerText = conf.cmt_sai.autoridade_re || '-';
+      doc.querySelector('#p-conf-sai-assinatura').innerText = `ASSINADO ELETRONICAMENTE EM ${new Date(conf.cmt_sai.data_hora).toLocaleString('pt-BR')}`;
+    }
+    if (conf.cmt_entra) {
+      doc.querySelector('#p-conf-entra-grad').innerText = conf.cmt_entra.autoridade_graduacao || '-';
+      doc.querySelector('#p-conf-entra-re').innerText = conf.cmt_entra.autoridade_re || '-';
+      doc.querySelector('#p-conf-entra-assinatura').innerText = `ASSINADO ELETRONICAMENTE EM ${new Date(conf.cmt_entra.data_hora).toLocaleString('pt-BR')}`;
+    }
+    if (conf.cmt_pb) {
+      doc.querySelector('#p-conf-pb-grad').innerText = conf.cmt_pb.autoridade_graduacao || '-';
+      doc.querySelector('#p-conf-pb-re').innerText = conf.cmt_pb.autoridade_re || '-';
+      doc.querySelector('#p-conf-pb-assinatura').innerText = `VISTO HOMOLOGADO EM ${new Date(conf.cmt_pb.data_hora).toLocaleString('pt-BR')}`;
+    }
+
+    abrirModal('modal-impressao');
+  }
+
+  function executarImpressaoNavegador() {
+    window.print();
+  }
+
+  // ========================================================================
+  // DASHBOARD & CONSULTAS
+  // ========================================================================
+
+  async function carregarDashboard() {
+    try {
+      const res = await rpc('apiGetDashboardStats', {}, STATE.token);
+      if (res.success && res.stats) {
+        const s = res.stats;
+        document.getElementById('kpi-total').innerText = s.kpi.total;
+        document.getElementById('kpi-preenchimento').innerText = s.kpi.em_preenchimento;
+        document.getElementById('kpi-conferencia').innerText = s.kpi.aguardando_conferencia;
+        document.getElementById('kpi-finalizados').innerText = s.kpi.finalizados;
+
+        document.getElementById('pront-verde-count').innerText = s.porProntidao.Verde || 0;
+        document.getElementById('pront-amarela-count').innerText = s.porProntidao.Amarela || 0;
+        document.getElementById('pront-azul-count').innerText = s.porProntidao.Azul || 0;
+        document.getElementById('militares-count').innerText = s.militaresAtivos || 0;
+
+        document.getElementById('dashboard-timestamp').innerText = 'Atualizado em ' + new Date().toLocaleTimeString('pt-BR');
+
+        renderTabelaUltimos(s.ultimosRegistros);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function renderTabelaUltimos(registros) {
+    const tbody = document.getElementById('tbody-ultimos-registros');
+    if (!tbody) return;
+
+    if (!registros || registros.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">Nenhum registro encontrado.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = '';
+    registros.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-weight: 700; color: #fff;">${r.numero_registro}</td>
+        <td>${Utils.formatDateBR(r.data_inicio)} (${r.hora_inicio}) a ${Utils.formatDateBR(r.data_termino)} (${r.hora_termino})</td>
+        <td><span class="badge-prontidao badge-prontidao-${r.prontidao ? r.prontidao.toLowerCase() : 'verde'}">${r.prontidao}</span></td>
+        <td>${r.sgb} • ${r.pb_nome}</td>
+        <td>${r.cmt_graduacao || ''} ${r.cmt_re || ''} ${r.cmt_nome || ''}</td>
+        <td><span class="status-badge badge-${r.status.toLowerCase().replace(/\s+/g, '-')}">${r.status}</span></td>
+        <td style="text-align: right; white-space: nowrap;">
+          <button class="btn btn-secondary btn-sm" onclick="App.carregarRegistroPorId('${r.id}')">Abrir</button>
+          <button class="btn btn-secondary btn-sm" onclick="App.imprimirRegistroPorId('${r.id}')">🖨️</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function executarPesquisaConsulta(page = 1) {
+    const filters = {
+      numero_registro: document.getElementById('filtro-numero').value,
+      data_inicio: document.getElementById('filtro-data-ini').value,
+      data_fim: document.getElementById('filtro-data-fim').value,
+      prontidao: document.getElementById('filtro-prontidao').value,
+      sgb: document.getElementById('filtro-sgb').value,
+      pb_id: document.getElementById('filtro-pb').value,
+      status: document.getElementById('filtro-status').value,
+      page: page,
+      pageSize: 15
+    };
+
+    showLoading(true);
+    try {
+      const res = await rpc('apiQueryRegistros', filters, STATE.token);
+      if (res.success && res.data) {
+        renderTabelaConsulta(res.data);
+      }
+    } catch (e) {
+      showToast('Falha na consulta: ' + (e.message || e), 'error');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  function renderTabelaConsulta(data) {
+    const tbody = document.getElementById('tbody-consulta-registros');
+    document.getElementById('consulta-total-display').innerText = `${data.total} registros encontrados`;
+    document.getElementById('paginacao-info').innerText = `Página ${data.page} de ${data.totalPages || 1}`;
+
+    if (!data.items || data.items.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">Nenhum registro encontrado para os filtros selecionados.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = '';
+    data.items.forEach(r => {
+      const tr = document.createElement('tr');
+      const podeCancelar = STATE.user && STATE.user.perfil === 'admin' && r.status !== 'Cancelado';
+
+      tr.innerHTML = `
+        <td style="font-weight: 700; color: #fff;">${r.numero_registro}</td>
+        <td>${Utils.formatDateBR(r.data_inicio)} (${r.hora_inicio}) a ${Utils.formatDateBR(r.data_termino)} (${r.hora_termino})</td>
+        <td><span class="badge-prontidao badge-prontidao-${r.prontidao ? r.prontidao.toLowerCase() : 'verde'}">${r.prontidao}</span></td>
+        <td>${r.sgb} • ${r.pb_nome}</td>
+        <td>${r.cmt_graduacao || ''} ${r.cmt_re || ''} ${r.cmt_nome || ''}</td>
+        <td><span class="status-badge badge-${r.status.toLowerCase().replace(/\s+/g, '-')}">${r.status}</span></td>
+        <td style="font-size: 0.8rem; color: var(--text-muted);">${r.atualizado_em ? new Date(r.atualizado_em).toLocaleString('pt-BR') : '-'}</td>
+        <td style="text-align: right; white-space: nowrap;">
+          <button class="btn btn-secondary btn-sm" onclick="App.carregarRegistroPorId('${r.id}')">Visualizar</button>
+          <button class="btn btn-secondary btn-sm" onclick="App.imprimirRegistroPorId('${r.id}')">🖨️</button>
+          ${podeCancelar ? `<button class="btn btn-danger btn-sm" onclick="App.abrirModalCancelar('${r.id}')">Cancelar</button>` : ''}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // Renderiza botões de paginação
+    const bts = document.getElementById('paginacao-botoes');
+    bts.innerHTML = '';
+    if (data.page > 1) {
+      const prev = document.createElement('button');
+      prev.className = 'btn btn-secondary btn-sm';
+      prev.innerText = '← Anterior';
+      prev.onclick = () => executarPesquisaConsulta(data.page - 1);
+      bts.appendChild(prev);
+    }
+    if (data.page < data.totalPages) {
+      const next = document.createElement('button');
+      next.className = 'btn btn-secondary btn-sm';
+      next.innerText = 'Próxima →';
+      next.onclick = () => executarPesquisaConsulta(data.page + 1);
+      bts.appendChild(next);
+    }
+  }
+
+  function limparFiltrosConsulta() {
+    document.getElementById('filtro-numero').value = '';
+    document.getElementById('filtro-data-ini').value = '';
+    document.getElementById('filtro-data-fim').value = '';
+    document.getElementById('filtro-prontidao').value = '';
+    document.getElementById('filtro-sgb').value = '';
+    document.getElementById('filtro-pb').value = '';
+    document.getElementById('filtro-status').value = '';
+    executarPesquisaConsulta(1);
+  }
+
+  function abrirModalCancelar(regId) {
+    document.getElementById('cancelar-registro-id').value = regId;
+    document.getElementById('cancelar-motivo').value = '';
+    abrirModal('modal-cancelar-registro');
+  }
+
+  async function confirmarCancelamentoRegistro() {
+    const id = document.getElementById('cancelar-registro-id').value;
+    const motivo = document.getElementById('cancelar-motivo').value.trim();
+
+    if (!motivo || motivo.length < 5) {
+      showToast('Informe uma justificativa técnica de cancelamento.', 'error');
+      return;
+    }
+
+    showLoading(true);
+    try {
+      const res = await rpc('apiCancelarRegistro', id, motivo, STATE.token);
+      if (res.success) {
+        showToast('Registro cancelado com sucesso.', 'success');
+        fecharModal('modal-cancelar-registro');
+        executarPesquisaConsulta(1);
+      } else {
+        showToast(res.message, 'error');
+      }
+    } catch (e) {
+      showToast('Falha ao cancelar: ' + (e.message || e), 'error');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  // ========================================================================
+  // MÓDULO ADMINISTRATIVO
+  // ========================================================================
+
+  function abrirAdminSubTab(tabName) {
+    document.querySelectorAll('.admin-subpane').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('#view-admin .tab-btn').forEach(b => b.classList.remove('active'));
+
+    const targetPane = document.getElementById(`admin-sub-${tabName}`);
+    const targetBtn = document.getElementById(`btn-admin-${tabName}`);
+
+    if (targetPane) targetPane.style.display = 'block';
+    if (targetBtn) targetBtn.classList.add('active');
+
+    if (tabName === 'militares') carregarAdminMilitares();
+    else if (tabName === 'usuarios') carregarAdminUsuarios();
+    else if (tabName === 'postos') carregarAdminPostos();
+    else if (tabName === 'auditoria') carregarAuditLogs();
+  }
+
+  async function carregarAdminMilitares() {
+    try {
+      const res = await rpc('apiListMilitares', STATE.token);
+      const tbody = document.getElementById('tbody-admin-militares');
+      if (res.success && res.militares) {
+        tbody.innerHTML = '';
+        res.militares.forEach(m => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="font-weight: 700; color: #fff;">${m.re_formatado}</td>
+            <td>${m.graduacao}</td>
+            <td>${m.nome_completo}</td>
+            <td>${m.nome_guerra || '-'}</td>
+            <td>${m.unidade_ref || '-'}</td>
+            <td><span class="status-badge ${m.ativo ? 'badge-finalizado' : 'badge-cancelado'}">${m.ativo ? 'ATIVO' : 'INATIVO'}</span></td>
+            <td style="text-align: right;">
+              <button class="btn btn-secondary btn-sm" onclick='App.editarMilitarModal(${JSON.stringify(m)})'>Editar</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function abrirModalMilitar() {
+    document.getElementById('modal-mil-id').value = '';
+    document.getElementById('modal-mil-re').value = '';
+    document.getElementById('modal-mil-re').disabled = false;
+    document.getElementById('modal-mil-digito').value = '';
+    document.getElementById('modal-mil-nome').value = '';
+    document.getElementById('modal-mil-guerra').value = '';
+    document.getElementById('modal-mil-unidade').value = '2º SGB';
+    document.getElementById('modal-mil-ativo').value = 'SIM';
+    document.getElementById('modal-militar-titulo').innerText = 'Cadastrar Bombeiro Militar';
+    abrirModal('modal-militar');
+  }
+
+  function editarMilitarModal(m) {
+    document.getElementById('modal-mil-id').value = m.id;
+    document.getElementById('modal-mil-re').value = m.re;
+    document.getElementById('modal-mil-re').disabled = true;
+    document.getElementById('modal-mil-digito').value = m.digito || '';
+    document.getElementById('modal-mil-graduacao').value = m.graduacao;
+    document.getElementById('modal-mil-nome').value = m.nome_completo;
+    document.getElementById('modal-mil-guerra').value = m.nome_guerra || '';
+    document.getElementById('modal-mil-unidade').value = m.unidade_ref || '';
+    document.getElementById('modal-mil-ativo').value = m.ativo ? 'SIM' : 'NAO';
+    document.getElementById('modal-militar-titulo').innerText = `Editar Militar: ${m.re_formatado}`;
+    abrirModal('modal-militar');
+  }
+
+  async function salvarMilitarModal() {
+    const data = {
+      id: document.getElementById('modal-mil-id').value,
+      re: document.getElementById('modal-mil-re').value,
+      digito: document.getElementById('modal-mil-digito').value,
+      graduacao: document.getElementById('modal-mil-graduacao').value,
+      nome_completo: document.getElementById('modal-mil-nome').value,
+      nome_guerra: document.getElementById('modal-mil-guerra').value,
+      unidade_ref: document.getElementById('modal-mil-unidade').value,
+      ativo: document.getElementById('modal-mil-ativo').value === 'SIM'
+    };
+
+    showLoading(true);
+    try {
+      const res = await rpc('apiSaveMilitar', data, STATE.token);
+      if (res.success) {
+        showToast('Militar gravado com sucesso.', 'success');
+        fecharModal('modal-militar');
+        carregarAdminMilitares();
+      } else {
+        showToast(res.message, 'error');
+      }
+    } catch (e) {
+      showToast('Erro ao salvar militar: ' + (e.message || e), 'error');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  async function carregarAdminUsuarios() {
+    try {
+      const res = await rpc('apiListUsuarios', STATE.token);
+      const tbody = document.getElementById('tbody-admin-usuarios');
+      if (res.success && res.usuarios) {
+        tbody.innerHTML = '';
+        res.usuarios.forEach(u => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="font-weight: 700; color: #fff;">${u.re}</td>
+            <td>${u.nome_completo}</td>
+            <td><span class="user-role-tag role-${u.perfil}">${u.perfil}</span></td>
+            <td><span class="status-badge ${u.ativo ? 'badge-finalizado' : 'badge-cancelado'}">${u.ativo ? 'ATIVO' : 'INATIVO'}</span></td>
+            <td>${u.forcar_troca_senha ? '⚠️ SIM' : 'NÃO'}</td>
+            <td>${u.bloqueado ? '<span style="color: #ef4444; font-weight: bold;">BLOQUEADO</span>' : u.tentativas_falhas}</td>
+            <td style="font-size: 0.8rem; color: var(--text-muted);">${u.ultimo_acesso ? new Date(u.ultimo_acesso).toLocaleString('pt-BR') : 'Nunca'}</td>
+            <td style="text-align: right; white-space: nowrap;">
+              <button class="btn btn-secondary btn-sm" onclick="App.resetarSenhaUsuario('${u.id}', '${u.re}')">Reset Senha</button>
+              ${u.bloqueado ? `<button class="btn btn-danger btn-sm" onclick="App.desbloquearUsuario('${u.id}')">Desbloquear</button>` : ''}
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function resetarSenhaUsuario(userId, re) {
+    if (!confirm(`Deseja resetar a senha do usuário RE ${re} para a credencial provisória? A troca será exigida no próximo login.`)) {
+      return;
+    }
+    showLoading(true);
+    try {
+      const res = await rpc('apiResetPassword', userId, STATE.token);
+      if (res.success) {
+        showToast(res.message, 'success');
+        carregarAdminUsuarios();
+      } else {
+        showToast(res.message, 'error');
+      }
+    } catch (e) {
+      showToast('Falha no reset: ' + (e.message || e), 'error');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  async function desbloquearUsuario(userId) {
+    showLoading(true);
+    try {
+      const res = await rpc('apiUnlockUser', userId, STATE.token);
+      if (res.success) {
+        showToast('Conta desbloqueada com sucesso.', 'success');
+        carregarAdminUsuarios();
+      } else {
+        showToast(res.message, 'error');
+      }
+    } catch (e) {
+      showToast('Falha ao desbloquear: ' + (e.message || e), 'error');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  async function carregarAdminPostos() {
+    try {
+      const res = await rpc('apiListPostos', {}, STATE.token);
+      const tbody = document.getElementById('tbody-admin-postos');
+      if (res.success && res.postos) {
+        tbody.innerHTML = '';
+        res.postos.forEach(p => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="font-weight: 700; color: #fff;">${p.nome} (${p.sigla})</td>
+            <td>${p.sgb}</td>
+            <td>${p.grupamento_id}</td>
+            <td>${p.municipio || '-'}</td>
+            <td><span class="status-badge ${p.ativo === 'SIM' ? 'badge-finalizado' : 'badge-cancelado'}">${p.ativo === 'SIM' ? 'ATIVO' : 'INATIVO'}</span></td>
+            <td style="text-align: right;">
+              <button class="btn btn-secondary btn-sm" onclick='App.editarPostoModal(${JSON.stringify(p)})'>Editar</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function abrirModalPosto() {
+    document.getElementById('modal-pb-id').value = '';
+    document.getElementById('modal-pb-nome').value = '';
+    document.getElementById('modal-pb-sigla').value = '';
+    document.getElementById('modal-pb-municipio').value = '';
+    document.getElementById('modal-posto-titulo').innerText = 'Cadastrar Posto de Bombeiros';
+    abrirModal('modal-posto');
+  }
+
+  function editarPostoModal(p) {
+    document.getElementById('modal-pb-id').value = p.id;
+    document.getElementById('modal-pb-nome').value = p.nome;
+    document.getElementById('modal-pb-sigla').value = p.sigla || '';
+    document.getElementById('modal-pb-sgb').value = p.sgb;
+    document.getElementById('modal-pb-municipio').value = p.municipio || '';
+    document.getElementById('modal-posto-titulo').innerText = `Editar Posto: ${p.sigla}`;
+    abrirModal('modal-posto');
+  }
+
+  async function salvarPostoModal() {
+    const data = {
+      id: document.getElementById('modal-pb-id').value,
+      nome: document.getElementById('modal-pb-nome').value,
+      sigla: document.getElementById('modal-pb-sigla').value,
+      sgb: document.getElementById('modal-pb-sgb').value,
+      grupamento_id: document.getElementById('modal-pb-gb').value,
+      municipio: document.getElementById('modal-pb-municipio').value,
+      ativo: true
+    };
+
+    showLoading(true);
+    try {
+      const res = await rpc('apiSavePosto', data, STATE.token);
+      if (res.success) {
+        showToast('Posto gravado com sucesso.', 'success');
+        fecharModal('modal-posto');
+        carregarAdminPostos();
+        await carregarDadosIniciais();
+      } else {
+        showToast(res.message, 'error');
+      }
+    } catch (e) {
+      showToast('Erro ao salvar posto: ' + (e.message || e), 'error');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  async function carregarAuditLogs() {
+    try {
+      const res = await rpc('apiGetAuditLogs', { limit: 100 }, STATE.token);
+      const tbody = document.getElementById('tbody-admin-auditoria');
+      if (res.success && res.logs) {
+        tbody.innerHTML = '';
+        res.logs.forEach(l => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="font-size: 0.8rem; color: var(--text-muted);">${new Date(l.timestamp).toLocaleString('pt-BR')}</td>
+            <td><strong>${l.usuario_re}</strong> (${l.usuario_nome})</td>
+            <td><span class="status-badge" style="background: rgba(255,255,255,0.08);">${l.acao}</span></td>
+            <td>${l.entidade}</td>
+            <td><span class="status-badge ${l.resultado === 'SUCESSO' ? 'badge-finalizado' : 'badge-cancelado'}">${l.resultado}</span></td>
+            <td style="font-size: 0.82rem; color: var(--text-secondary);">${l.detalhes}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function exportarBackup() {
+    showLoading(true);
+    try {
+      const res = await rpc('apiGetFullBackup', STATE.token);
+      if (res.success && res.backup) {
+        const jsonStr = JSON.stringify(res.backup, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `backup_livro_registro_${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('Backup exportado com sucesso.', 'success');
+      }
+    } catch (e) {
+      showToast('Falha ao exportar backup: ' + (e.message || e), 'error');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  async function executarBootstrapAutorizado() {
+    if (!confirm('Deseja executar a verificação e inicialização dos esquemas de banco de dados da planilha? Operação não destrutiva.')) {
+      return;
+    }
+    showLoading(true);
+    try {
+      const res = await rpc('apiBootstrapSystem');
+      if (res.success) {
+        showToast(res.message, 'success');
+      } else {
+        showToast(res.message, 'error');
+      }
+    } catch (e) {
+      showToast('Erro no bootstrap: ' + (e.message || e), 'error');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  // Executa na inicialização do DOM
+  window.addEventListener('DOMContentLoaded', init);
+
+  return {
+    init: init,
+    fazerLogin: fazerLogin,
+    fazerLogout: fazerLogout,
+    salvarTrocaSenha: salvarTrocaSenha,
+    navegarPara: navegarPara,
+    togglePasswordVisibility: togglePasswordVisibility,
+    abrirModal: abrirModal,
+    fecharModal: fecharModal,
+    abrirNovoRegistro: abrirNovoRegistro,
+    voltarDoFormulario: voltarDoFormulario,
+    carregarRegistroPorId: carregarRegistroPorId,
+    salvarRegistroForm: salvarRegistroForm,
+    assinarConferencia: assinarConferencia,
+    finalizarRegistroAtual: finalizarRegistroAtual,
+    imprimirRegistroAtual: imprimirRegistroAtual,
+    imprimirRegistroPorId: imprimirRegistroPorId,
+    executarImpressaoNavegador: executarImpressaoNavegador,
+    carregarDashboard: carregarDashboard,
+    executarPesquisaConsulta: executarPesquisaConsulta,
+    limparFiltrosConsulta: limparFiltrosConsulta,
+    abrirModalCancelar: abrirModalCancelar,
+    confirmarCancelamentoRegistro: confirmarCancelamentoRegistro,
+    onDataInicioChange: onDataInicioChange,
+    onProntidaoManualChange: onProntidaoManualChange,
+    onSgbChange: onSgbChange,
+    onGrupamentoChange: onGrupamentoChange,
+    buscarComandanteAutocomplete: buscarComandanteAutocomplete,
+    buscarInstrutorSec7: buscarInstrutorSec7,
+    buscarInstrutorSec8: buscarInstrutorSec8,
+    buscarInstrutorSec9: buscarInstrutorSec9,
+    buscarNomeRonda: buscarNomeRonda,
+    toggleAccordion: toggleAccordion,
+    adicionarArmamento: adicionarArmamento,
+    adicionarColete: adicionarColete,
+    adicionarMunicao: adicionarMunicao,
+    adicionarViatura: adicionarViatura,
+    atualizarTotaisViaturas: atualizarTotaisViaturas,
+    adicionarRonda: adicionarRonda,
+    abrirAdminSubTab: abrirAdminSubTab,
+    abrirModalMilitar: abrirModalMilitar,
+    editarMilitarModal: editarMilitarModal,
+    salvarMilitarModal: salvarMilitarModal,
+    resetarSenhaUsuario: resetarSenhaUsuario,
+    desbloquearUsuario: desbloquearUsuario,
+    abrirModalPosto: abrirModalPosto,
+    editarPostoModal: editarPostoModal,
+    salvarPostoModal: salvarPostoModal,
+    carregarAuditLogs: carregarAuditLogs,
+    exportarBackup: exportarBackup,
+    executarBootstrapAutorizado: executarBootstrapAutorizado
+  };
+})();
+</script>

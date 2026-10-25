@@ -1,0 +1,166 @@
+<!-- ========================================================================
+     MÓDULO DE ADMINISTRAÇÃO DO SISTEMA (Apenas Perfil Admin)
+     ======================================================================== -->
+<section id="view-admin" class="view-pane">
+  <div style="margin-bottom: 1.5rem;">
+    <h2 style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 700;">Administração do Sistema</h2>
+    <p style="font-size: 0.85rem; color: var(--text-secondary);">Gerenciamento de efetivo, contas de usuários, unidades e auditoria</p>
+  </div>
+
+  <!-- Sub-tabs administrativas -->
+  <div class="nav-tabs" style="margin-bottom: 1.5rem;">
+    <button class="tab-btn active" id="btn-admin-militares" onclick="App.abrirAdminSubTab('militares')">
+      🎖️ Efetivo Militar
+    </button>
+    <button class="tab-btn" id="btn-admin-usuarios" onclick="App.abrirAdminSubTab('usuarios')">
+      👥 Contas & Senhas
+    </button>
+    <button class="tab-btn" id="btn-admin-postos" onclick="App.abrirAdminSubTab('postos')">
+      🏢 Postos de Bombeiros
+    </button>
+    <button class="tab-btn" id="btn-admin-auditoria" onclick="App.abrirAdminSubTab('auditoria')">
+      🛡️ Auditoria de Segurança
+    </button>
+    <button class="tab-btn" id="btn-admin-backup" onclick="App.abrirAdminSubTab('backup')">
+      💾 Backup & Inicialização
+    </button>
+  </div>
+
+  <!-- SUB-ABA 1: MILITARES -->
+  <div id="admin-sub-militares" class="admin-subpane">
+    <div class="card">
+      <div class="card-header">
+        <h3>Efetivo de Bombeiros Militares</h3>
+        <button class="btn btn-primary btn-sm" onclick="App.abrirModalMilitar()">➕ Novo Militar</button>
+      </div>
+
+      <div class="table-container">
+        <table class="app-table">
+          <thead>
+            <tr>
+              <th>RE com Dígito</th>
+              <th>Graduação / Posto</th>
+              <th>Nome Completo</th>
+              <th>Nome de Guerra</th>
+              <th>Unidade</th>
+              <th>Status</th>
+              <th style="text-align: right;">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-admin-militares">
+            <tr><td colspan="7" style="text-align: center; padding: 2rem;">Carregando efetivo...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUB-ABA 2: USUÁRIOS -->
+  <div id="admin-sub-usuarios" class="admin-subpane" style="display: none;">
+    <div class="card">
+      <div class="card-header">
+        <h3>Contas de Usuários e Controle de Acesso</h3>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+        Gerencie as credenciais dos usuários. Ao resetar a senha, a conta voltará para a senha provisória inicial com troca obrigatória no próximo login.
+      </p>
+
+      <div class="table-container">
+        <table class="app-table">
+          <thead>
+            <tr>
+              <th>Identificador (RE)</th>
+              <th>Nome Completo</th>
+              <th>Perfil</th>
+              <th>Status</th>
+              <th>Troca Obrigatória</th>
+              <th>Tentativas Falhas</th>
+              <th>Último Acesso</th>
+              <th style="text-align: right;">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-admin-usuarios">
+            <tr><td colspan="8" style="text-align: center; padding: 2rem;">Carregando usuários...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUB-ABA 3: POSTOS DE BOMBEIROS -->
+  <div id="admin-sub-postos" class="admin-subpane" style="display: none;">
+    <div class="card">
+      <div class="card-header">
+        <h3>Postos de Bombeiros (PB) e Vinculações</h3>
+        <button class="btn btn-primary btn-sm" onclick="App.abrirModalPosto()">➕ Novo Posto de Bombeiros</button>
+      </div>
+
+      <div class="table-container">
+        <table class="app-table">
+          <thead>
+            <tr>
+              <th>Sigla / Nome</th>
+              <th>SGB</th>
+              <th>Grupamento</th>
+              <th>Município</th>
+              <th>Status</th>
+              <th style="text-align: right;">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-admin-postos">
+            <tr><td colspan="6" style="text-align: center; padding: 2rem;">Carregando postos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUB-ABA 4: AUDITORIA -->
+  <div id="admin-sub-auditoria" class="admin-subpane" style="display: none;">
+    <div class="card">
+      <div class="card-header">
+        <h3>Trilha de Auditoria e Eventos de Segurança</h3>
+        <button class="btn btn-secondary btn-sm" onclick="App.carregarAuditLogs()">🔄 Atualizar Logs</button>
+      </div>
+
+      <div class="table-container">
+        <table class="app-table">
+          <thead>
+            <tr>
+              <th>Data/Hora</th>
+              <th>Usuário (RE)</th>
+              <th>Ação</th>
+              <th>Entidade</th>
+              <th>Resultado</th>
+              <th>Detalhes</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-admin-auditoria">
+            <tr><td colspan="6" style="text-align: center; padding: 2rem;">Carregando auditoria...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUB-ABA 5: BACKUP E BOOTSTRAP -->
+  <div id="admin-sub-backup" class="admin-subpane" style="display: none;">
+    <div class="card">
+      <div class="card-header">
+        <h3>Backup do Banco de Dados e Procedimentos de Inicialização</h3>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+        Exporte todos os dados das tabelas da planilha Google para um arquivo JSON estruturado para segurança e recuperação.
+      </p>
+
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <button class="btn btn-primary" onclick="App.exportarBackup()">
+          💾 Exportar Backup Completo (JSON)
+        </button>
+        <button class="btn btn-secondary" onclick="App.executarBootstrapAutorizado()">
+          ⚙️ Re-inicializar / Verificar Esquemas da Planilha
+        </button>
+      </div>
+    </div>
+  </div>
+</section>

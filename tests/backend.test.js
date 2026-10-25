@@ -1,0 +1,398 @@
+/**
+ * SUÍTE DE TESTES AUTOMATIZADOS - BACKEND & REGRAS OPERACIONAIS
+ * Executado via Node.js: node --test tests/backend.test.js
+ */
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+// Módulos do Sistema
+// Carrega Config e Utils no escopo global antes dos demais módulos
+const Config = require('../Config.js');
+const Utils = require('../Utils.js');
+global.Config = Config;
+global.Utils = Utils;
+
+const Database = require('../Database.js');
+global.Database = Database;
+
+const Audit = require('../Audit.js');
+global.Audit = Audit;
+
+const Session = require('../Session.js');
+global.Session = Session;
+
+const Authorization = require('../Authorization.js');
+global.Authorization = Authorization;
+
+const Militares = require('../Militares.js');
+global.Militares = Militares;
+
+const Users = require('../Users.js');
+global.Users = Users;
+
+const Auth = require('../Auth.js');
+global.Auth = Auth;
+
+const Unidades = require('../Unidades.js');
+global.Unidades = Unidades;
+
+const Prontidao = require('../Prontidao.js');
+global.Prontidao = Prontidao;
+
+const SecoesOperacionais = require('../SecoesOperacionais.js');
+global.SecoesOperacionais = SecoesOperacionais;
+
+const Conferencias = require('../Conferencias.js');
+global.Conferencias = Conferencias;
+
+const RegistroAtividades = require('../RegistroAtividades.js');
+global.RegistroAtividades = RegistroAtividades;
+
+const Reports = require('../Reports.js');
+global.Reports = Reports;
+
+const Backup = require('../Backup.js');
+global.Backup = Backup;
+
+const SeedData = require('../SeedData.js');
+global.SeedData = SeedData;
+
+
+// Mock robusto de Planilha Google (SpreadsheetApp em memória)
+function createMockSpreadsheet() {
+  const sheets = {};
+
+  function createMockSheet(name) {
+    const data = [];
+    return {
+      getName: () => name,
+      getLastRow: () => data.length,
+      getLastColumn: () => (data.length > 0 ? data[0].length : 0),
+      setFrozenRows: () => {},
+      appendRow: (rowValues) => {
+        data.push([...rowValues]);
+      },
+      deleteRow: (rowIdx) => {
+        data.splice(rowIdx - 1, 1);
+      },
+      getRange: (startRow, startCol, numRows = 1, numCols = 1) => {
+        return {
+          getValues: () => {
+            const result = [];
+            for (let r = 0; r < numRows; r++) {
+              const rowIdx = startRow - 1 + r;
+              const rowData = data[rowIdx] || [];
+              const rowSlice = [];
+              for (let c = 0; c < numCols; c++) {
+                const colIdx = startCol - 1 + c;
+                rowSlice.push(rowData[colIdx] !== undefined ? rowData[colIdx] : '');
+              }
+              result.push(rowSlice);
+            }
+            return result;
+          },
+          setValues: (values) => {
+            for (let r = 0; r < values.length; r++) {
+              const targetRowIdx = startRow - 1 + r;
+              while (data.length <= targetRowIdx) {
+                data.push([]);
+              }
+              for (let c = 0; c < values[r].length; c++) {
+                const targetColIdx = startCol - 1 + c;
+                data[targetRowIdx][targetColIdx] = values[r][c];
+              }
+            }
+          },
+          setValue: (val) => {
+            const targetRowIdx = startRow - 1;
+            while (data.length <= targetRowIdx) data.push([]);
+            data[targetRowIdx][startCol - 1] = val;
+          }
+        };
+      }
+    };
+  }
+
+  return {
+    getSheetByName: (name) => sheets[name] || null,
+    insertSheet: (name) => {
+      const s = createMockSheet(name);
+      sheets[name] = s;
+      return s;
+    },
+    getAllSheetNames: () => Object.keys(sheets)
+  };
+}
+
+// Injeta mock da planilha
+const mockSpreadsheet = createMockSpreadsheet();
+Database.setSpreadsheetOverride(mockSpreadsheet);
+
+test('1. Inicialização do Esquema de Banco de Dados', async (t) => {
+  const report = Database.initializeSchema(mockSpreadsheet);
+  assert.ok(report.createdSheets.length >= 18, 'Deve criar todas as 18+ abas da especificação');
+
+  const sheets = mockSpreadsheet.getAllSheetNames();
+  assert.ok(sheets.includes('CONFIGURACOES'), 'Deve conter aba CONFIGURACOES');
+  assert.ok(sheets.includes('USUARIOS'), 'Deve conter aba USUARIOS');
+  assert.ok(sheets.includes('MILITARES'), 'Deve conter aba MILITARES');
+  assert.ok(sheets.includes('REGISTROS_ATIVIDADES'), 'Deve conter aba REGISTROS_ATIVIDADES');
+  assert.ok(sheets.includes('VIATURAS_REGISTRO'), 'Deve conter aba VIATURAS_REGISTRO');
+  assert.ok(sheets.includes('CONFERENCIAS'), 'Deve conter aba CONFERENCIAS');
+  assert.ok(sheets.includes('AUDITORIA'), 'Deve conter aba AUDITORIA');
+
+  // Teste de idempotência: executar novamente não deve falhar nem duplicar abas
+  const secondReport = Database.initializeSchema(mockSpreadsheet);
+  assert.equal(secondReport.createdSheets.length, 0, 'Segunda execução deve verificar sem duplicar abas');
+});
+
+test('2. Carga Inicial de Seeds (Militares, Unidades e Administrador)', async (t) => {
+  const seedReport = SeedData.populateSeedData();
+  assert.ok(seedReport.success, 'Carga de seeds deve ser concluída com sucesso');
+  assert.ok(seedReport.militaresCadastrados >= 15, 'Deve carregar efetivo de militares');
+  assert.ok(seedReport.postosCadastrados >= 5, 'Deve carregar postos de bombeiros');
+
+  // Verifica se o admin inicial foi provisionado
+  const adminUsers = Database.find('USUARIOS', u => String(u.re).toLowerCase() === 'admin');
+  assert.equal(adminUsers.length, 1, 'Deve conter exatamente 1 usuário admin');
+  assert.equal(adminUsers[0].forcar_troca_senha, 'SIM', 'Admin deve ter flag de troca obrigatória de senha');
+  assert.notEqual(adminUsers[0].hash_senha, 'admin', 'Senha do admin NUNCA pode estar em texto puro');
+});
+
+test('3. Autenticação, Troca Obrigatória e Bloqueio de Tentativas', async (t) => {
+  // Login admin inicial com admin + admin
+  const loginRes = Auth.login('admin', 'admin');
+  assert.ok(loginRes.success, 'Login inicial admin+admin deve ter sucesso');
+  assert.ok(loginRes.user.forcar_troca_senha, 'Primeiro acesso do admin deve exigir troca de senha');
+  assert.ok(loginRes.token, 'Deve emitir token de sessão');
+
+  const token = loginRes.token;
+
+  // Tentativa de alterar senha para a mesma senha provisória deve ser rejeitada
+  const failSamePass = Auth.changePassword(token, 'admin', 'admin', 'admin');
+  assert.equal(failSamePass.success, false, 'Não deve aceitar a senha provisória como nova senha');
+
+  // Alteração com sucesso para nova senha segura
+  const changeRes = Auth.changePassword(token, 'admin', 'Bombeiros@2026', 'Bombeiros@2026');
+  assert.ok(changeRes.success, 'Deve alterar a senha com sucesso');
+
+  // Login antigo com 'admin' agora deve falhar!
+  const oldLogin = Auth.login('admin', 'admin');
+  assert.equal(oldLogin.success, false, 'Senha provisória antiga deve estar permanentemente inválida');
+
+  // Novo login com a nova senha deve funcionar
+  const newLogin = Auth.login('admin', 'Bombeiros@2026');
+  assert.ok(newLogin.success, 'Login com a nova senha deve ter sucesso');
+  assert.equal(newLogin.user.forcar_troca_senha, false, 'Flag de troca obrigatória deve estar desativada');
+
+  // Login militar com RE + RE
+  const milLogin = Auth.login('108154', '108154');
+  assert.ok(milLogin.success, 'Militar 108154 deve conseguir login inicial com seu RE');
+  assert.ok(milLogin.user.forcar_troca_senha, 'Militar deve ter troca obrigatória no primeiro login');
+
+  // Teste de bloqueio temporário após 5 falhas consecutivas
+  for (let i = 0; i < 5; i++) {
+    Auth.login('10101', 'senha_errada_' + i);
+  }
+  const lockedLogin = Auth.login('10101', '10101');
+  assert.equal(lockedLogin.success, false, 'Conta deve estar bloqueada por tentativas excessivas');
+  assert.match(lockedLogin.message, /bloqueada/i, 'Mensagem deve indicar bloqueio temporário');
+});
+
+test('4. Cálculo Matemático de 24 Horas e Ciclo de Prontidões', async (t) => {
+  // Teste de ciclo de prontidões
+  // Data base de referência: 2026-10-24 = Verde
+  assert.equal(Prontidao.calcularProntidao('2026-10-24'), 'Verde');
+  assert.equal(Prontidao.calcularProntidao('2026-10-25'), 'Amarela');
+  assert.equal(Prontidao.calcularProntidao('2026-10-26'), 'Azul');
+  assert.equal(Prontidao.calcularProntidao('2026-10-27'), 'Verde');
+
+  // Datas passadas
+  assert.equal(Prontidao.calcularProntidao('2026-10-23'), 'Azul');
+  assert.equal(Prontidao.calcularProntidao('2026-10-22'), 'Amarela');
+  assert.equal(Prontidao.calcularProntidao('2026-10-21'), 'Verde');
+
+  // Cálculo de término de 24h exatas (Início 07:30 -> Término 07:30 no dia seguinte)
+  const p1 = Prontidao.calcularPeriodoEProntidao('2026-10-24', '07:30');
+  assert.equal(p1.data_inicio, '2026-10-24');
+  assert.equal(p1.hora_inicio, '07:30');
+  assert.equal(p1.data_termino, '2026-10-25');
+  assert.equal(p1.hora_termino, '07:30');
+  assert.equal(p1.prontidao, 'Verde');
+
+  // Virada de mês (31 de Outubro -> 01 de Novembro)
+  const viradaMes = Prontidao.calcularTermino24h('2026-10-31', '07:30');
+  assert.equal(viradaMes.data_termino, '2026-11-01');
+
+  // Virada de ano (31 de Dezembro -> 01 de Janeiro do próximo ano)
+  const viradaAno = Prontidao.calcularTermino24h('2026-12-31', '07:30');
+  assert.equal(viradaAno.data_termino, '2027-01-01');
+});
+
+test('5. Busca de Militares e Unidades', async (t) => {
+  // Busca por RE exato
+  const mil = Militares.findByRE('108154');
+  assert.ok(mil, 'Deve encontrar militar 108154');
+  assert.equal(mil.nome_completo, 'André Fonseca Dias');
+  assert.equal(mil.graduacao, '1º Sgt PM');
+  assert.equal(mil.display_formatado, '1º Sgt PM — 108154-3 — André Fonseca Dias');
+
+  // Grupamentos (1º ao 25º GB)
+  const gbs = Unidades.listGrupamentos();
+  assert.equal(gbs.length, 25, 'Deve listar exatamente os 25 Grupamentos de Bombeiros');
+  assert.equal(gbs[0].sigla, '1º GB');
+  assert.equal(gbs[24].sigla, '25º GB');
+
+  // SGBs (1º ao 6º)
+  const sgbs = Unidades.listSGBs();
+  assert.equal(sgbs.length, 6, 'Deve listar 6 SGBs');
+
+  // Postos de Bombeiros filtrados por SGB
+  const postos2SGB = Unidades.listPostos({ sgb: '2º SGB' });
+  assert.ok(postos2SGB.length >= 2, 'Deve encontrar postos do 2º SGB');
+  const pbSaoRoque = postos2SGB.find(p => p.id === 'pb_sroque');
+  assert.ok(pbSaoRoque, 'Deve encontrar PB São Roque');
+});
+
+test('6. Criação de Registro, Prevenção de Duplicatas e Totais de Viaturas', async (t) => {
+  const sessionAdmin = { re: 'admin', nome_completo: 'Administrador', perfil: 'admin' };
+
+  // 1. Criação do primeiro registro
+  const createRes = RegistroAtividades.create({
+    data_inicio: '2026-11-10',
+    hora_inicio: '07:30',
+    sgb: '2º SGB',
+    pb_id: 'pb_sroque',
+    cmt_re: '108154'
+  }, sessionAdmin);
+
+  assert.ok(createRes.success, 'Criação do registro deve ter sucesso');
+  const regId = createRes.registro.id;
+  assert.ok(createRes.registro.numero_registro.startsWith('LRA-2026-'), 'Número de registro formatado');
+  assert.equal(createRes.registro.cmt_nome, 'André Fonseca Dias');
+  assert.equal(createRes.registro.cmt_graduacao, '1º Sgt PM');
+
+  // 2. Tentativa de duplicata com mesma data, SGB, PB e prontidão
+  const dupRes = RegistroAtividades.create({
+    data_inicio: '2026-11-10',
+    hora_inicio: '07:30',
+    sgb: '2º SGB',
+    pb_id: 'pb_sroque'
+  }, sessionAdmin);
+
+  assert.equal(dupRes.success, false, 'Deve impedir criação de duplicata');
+  assert.ok(dupRes.isDuplicate, 'Flag isDuplicate deve ser true');
+  assert.equal(dupRes.existingId, regId, 'Deve indicar o ID do registro existente');
+
+  // 3. Salvamento completo com as seções operacionais
+  const saveRes = RegistroAtividades.saveComplete(regId, {
+    pessoal: {
+      falta: 0,
+      baixas: 1,
+      visitantes: 2,
+      licenca_convalescenca: 0,
+      restricao: 0,
+      estagiarios: 0,
+      complemento: '1 baixa por consulta odontológica'
+    },
+    materiais_belicos: {
+      armamentos: [
+        { tipo: 'Pistola', modelo: '.40', marca: 'Taurus PT 24/7', numero_serie: 'SDU12345' }
+      ],
+      coletes: [
+        { tamanho: 'G', quantidade: 2, capas: 'Bom estado', numero_serie: 'COL-9988' }
+      ],
+      municoes: [
+        { tipo: '.40 CBC', quantidade: 30 }
+      ],
+      outros_materiais: '1 par de algemas'
+    },
+    viaturas: [
+      { prefixo: 'UR-15201', situacao: 'Operando', observacoes: 'Pronta resposta' },
+      { prefixo: 'ABS-15202', situacao: 'Operando', observacoes: 'Em operação' },
+      { prefixo: 'ABT-15203', situacao: 'Baixada', observacoes: 'Freios em manutenção na CSM/M' },
+      { prefixo: 'VO-15204', situacao: 'Reserva', observacoes: 'Quartel' }
+    ],
+    ordem_dia: 'Manter prontidão e atenção redobrada no período chuvoso.',
+    ordens_recebidas: {
+      verbais: 'Determinação do Cmt do 2º SGB para vistoria nos hidrantes centrais.',
+      escritas: 'Nota de Serviço nº 12/2026.'
+    },
+    manutencao: {
+      limpeza: 'Banheiros e alojamentos higienizados pela equipe.',
+      melhorias: 'Pintura da sala de instrução.',
+      medidor_energia: '124580',
+      medidor_energia_unidade: 'kWh',
+      hidrometro: '4532',
+      hidrometro_unidade: 'm³/h'
+    },
+    ocorrencias: 'Incêndio em vegetação na Rodovia Raposo Tavares km 62 extinto sem vítimas.',
+    rondas: [
+      { ordem: 1, funcao: 'Ronda Diurna', posto: 'PB São Roque', data_hora: '10:00', responsavel_re: '108154', responsavel_nome: 'André Fonseca Dias', novidades_sugestoes: 'Sem alterações' },
+      { ordem: 2, funcao: 'Ronda Noturna', posto: 'PB São Roque', data_hora: '22:00', responsavel_re: '108154', responsavel_nome: 'André Fonseca Dias', novidades_sugestoes: 'Tudo em ordem' }
+    ]
+  }, sessionAdmin);
+
+  assert.ok(saveRes, 'Salvamento completo deve retornar o registro');
+  assert.equal(saveRes.pessoal.baixas, 1);
+  assert.equal(saveRes.viaturas.totais.operando, 2, 'Total de viaturas operando deve ser 2');
+  assert.equal(saveRes.viaturas.totais.baixada, 1, 'Total de viaturas baixadas deve ser 1');
+  assert.equal(saveRes.viaturas.totais.reserva, 1, 'Total de viaturas reserva deve ser 1');
+  assert.equal(saveRes.viaturas.totais.acidentada, 0, 'Total de viaturas acidentadas deve ser 0');
+  assert.equal(saveRes.rondas.length, 2, 'Deve persistir as 2 rondas');
+});
+
+test('7. Conferência Oficial pelas 3 Autoridades e Finalização', async (t) => {
+  const sessionAdmin = { re: 'admin', nome_completo: 'Administrador', perfil: 'admin' };
+  const sessionCmtSai = { re: '108154', nome_completo: 'André Fonseca Dias', perfil: 'operacional' };
+  const sessionCmtEntra = { re: '20202', nome_completo: 'Igor Matheus Carvalho', perfil: 'operacional' };
+  const sessionCmtPB = { re: '30301', nome_completo: 'Paulo Roberto Freitas', perfil: 'operacional' };
+
+  // Busca o registro criado anteriormente
+  const registros = Database.getAll('REGISTROS_ATIVIDADES');
+  const reg = registros[0];
+  assert.ok(reg, 'Registro deve existir');
+
+  // 1. Assinatura do Cmt que Sai
+  const conf1 = Conferencias.validarConferencia(reg.id, 'cmt_sai', sessionCmtSai, 'Conferência do serviço que sai');
+  assert.ok(conf1.conferencia, 'Deve registrar conferência do Cmt que sai');
+  assert.equal(conf1.conferencia.autoridade_re, '108154');
+  assert.equal(conf1.status_registro, Config.STATUS_REGISTRO.AGUARDANDO_CONFERENCIA);
+
+  // 2. Assinatura do Cmt que Entra
+  const conf2 = Conferencias.validarConferencia(reg.id, 'cmt_entra', sessionCmtEntra, 'Recebido com viaturas e materiais conferidos');
+  assert.ok(conf2.conferencia, 'Deve registrar conferência do Cmt que entra');
+
+  // 3. Assinatura do Cmt do PB
+  const conf3 = Conferencias.validarConferencia(reg.id, 'cmt_pb', sessionCmtPB, 'Visto do Cmt do PB');
+  assert.ok(conf3.conferencia, 'Deve registrar conferência do Cmt do PB');
+  assert.equal(conf3.status_registro, Config.STATUS_REGISTRO.CONFERIDO, 'Com as 3 autoridades, status deve passar para Conferido');
+
+  // 4. Finalização oficial
+  const finalRes = RegistroAtividades.finalizar(reg.id, sessionAdmin);
+  assert.equal(finalRes.status, Config.STATUS_REGISTRO.FINALIZADO, 'Registro deve estar finalizado');
+
+  // 5. Tentativa de editar registro finalizado deve falhar
+  assert.throws(() => {
+    RegistroAtividades.saveComplete(reg.id, { ordem_dia: 'Tentativa indevida' }, sessionAdmin);
+  }, /finalizado/i, 'Não deve permitir edição de registro já finalizado');
+});
+
+test('8. Dashboard, Métricas e Trilha de Auditoria', async (t) => {
+  const stats = Reports.getDashboardStats();
+  assert.ok(stats.kpi.total >= 1, 'Total de registros no dashboard >= 1');
+  assert.ok(stats.kpi.finalizados >= 1, 'Registros finalizados >= 1');
+  assert.ok(stats.militaresAtivos >= 15, 'Militares ativos reportados');
+
+  // Auditoria
+  const auditLogs = Audit.query();
+  assert.ok(auditLogs.length > 5, 'Deve conter registros de auditoria gravados');
+  const loginAudit = auditLogs.find(a => a.acao.startsWith('LOGIN'));
+  assert.ok(loginAudit, 'Auditoria deve registrar eventos de login');
+
+  // Backup
+  const backup = Backup.exportFullBackup({ re: 'admin', nome_completo: 'Admin', perfil: 'admin' });
+  assert.ok(backup.data.REGISTROS_ATIVIDADES, 'Backup deve exportar REGISTROS_ATIVIDADES');
+  assert.ok(backup.data.MILITARES, 'Backup deve exportar MILITARES');
+});
