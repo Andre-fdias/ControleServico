@@ -386,16 +386,11 @@ const Database = (function() {
       }
     });
 
-    // Registra a versão na aba SCHEMA_VERSOES
+    // Remove a aba vazia inicial 'Página1' se existirem outras abas no banco
     try {
-      const schemaVersoes = getAll('SCHEMA_VERSOES');
-      if (schemaVersoes.length === 0) {
-        insert('SCHEMA_VERSOES', {
-          versao: '1.0.0',
-          data_aplicacao: Utils.nowTimestamp(),
-          status: 'APLICADO',
-          detalhes: 'Inicialização completa do banco de dados do Livro de Registro de Atividades CBM'
-        });
+      const defaultSheet = ss.getSheetByName('Página1') || ss.getSheetByName('Sheet1');
+      if (defaultSheet && typeof ss.getSheets === 'function' && ss.getSheets().length > 1 && defaultSheet.getLastRow() === 0) {
+        ss.deleteSheet(defaultSheet);
       }
     } catch (e) {}
 

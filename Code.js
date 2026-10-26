@@ -26,6 +26,89 @@ function include(filename) {
 }
 
 /**
+ * Gatilho oficial de abertura da Planilha Google
+ * Cria o menu personalizado '🚒 Livro de Registro' na barra de ferramentas
+ */
+function onOpen(e) {
+  try {
+    const ui = SpreadsheetApp.getUi();
+    ui.createMenu('🚒 Livro de Registro')
+      .addItem('⚙️ 1. Inicializar Banco de Dados (Criar Todas as Abas)', 'menuInicializarBancoDeDados')
+      .addItem('🚀 2. Abrir Sistema Web (Livro de Registro)', 'menuAbrirSistemaWeb')
+      .addSeparator()
+      .addItem('🔄 3. Sincronizar Efetivo (SisFolgas)', 'menuSincronizarEfetivo')
+      .addToUi();
+  } catch (err) {}
+}
+
+function menuInicializarBancoDeDados() {
+  const ui = SpreadsheetApp.getUi();
+  const resp = ui.alert(
+    'Inicialização do Banco de Dados',
+    'Deseja criar e configurar todas as tabelas, abas, colunas e dados iniciais (efetivo militar, catálogo de materiais e usuário admin padrão)?\n\nOperação segura e idempotente.',
+    ui.ButtonSet.YES_NO
+  );
+  if (resp !== ui.Button.YES) return;
+
+  try {
+    const res = apiBootstrapSystem();
+    ui.alert(
+      'Sucesso!',
+      `Banco de dados inicializado com sucesso!\n\n` +
+      `• Abas verificadas/criadas: ${res.schema.createdSheets.length}\n` +
+      `• Militares base cadastrados: ${res.seeds.militaresCadastrados}\n` +
+      `• Postos de Bombeiros cadastrados: ${res.seeds.postosCadastrados}\n` +
+      `• Usuário padrão: admin (senha provisória: admin)\n\n` +
+      `Use o menu "🚀 2. Abrir Sistema Web" para iniciar o serviço.`,
+      ui.ButtonSet.OK
+    );
+  } catch (err) {
+    ui.alert('Erro', 'Falha ao inicializar banco de dados: ' + err.message, ui.ButtonSet.OK);
+  }
+}
+
+function menuAbrirSistemaWeb() {
+  const ui = SpreadsheetApp.getUi();
+  let url = '';
+  try {
+    url = ScriptApp.getService().getUrl();
+  } catch (e) {}
+  if (!url) {
+    url = 'https://script.google.com/macros/s/AKfycbyJ2bT7f4fx7h-EW0dnwrD82ilcVLHkWZLCNvKu1eeFSLaLzSUCImExSTIHk2UP4Zzb/exec';
+  }
+
+  const html = HtmlService.createHtmlOutput(
+    `<div style="font-family: Arial, sans-serif; text-align: center; padding: 1.5rem; color: #1e293b;">
+      <h3 style="color: #ef4444; margin-bottom: 0.5rem; font-size: 1.15rem;">Livro de Registro de Atividades</h3>
+      <p style="color: #64748b; font-size: 13px; margin-bottom: 1.5rem;">Clique no botão abaixo para abrir o sistema em uma nova aba:</p>
+      <a href="${url}" target="_blank" style="display: inline-block; background: #dc2626; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);">
+        🚀 Abrir Livro de Registro
+      </a>
+      <div style="margin-top: 1.5rem; font-size: 11px; color: #94a3b8; word-break: break-all;">
+        Link direto: <a href="${url}" target="_blank" style="color: #2563eb;">${url}</a>
+      </div>
+    </div>`
+  ).setWidth(460).setHeight(220);
+  ui.showModalDialog(html, 'Livro de Registro de Atividades — CBM PMESP');
+}
+
+function menuSincronizarEfetivo() {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    const res = Militares.syncEfetivoFromSisFolgas();
+    ui.alert(
+      'Sincronização com SisFolgas',
+      `Sincronização concluída com sucesso!\n\n` +
+      `• Militares importados/atualizados: ${res.importados}\n` +
+      `• Efetivo total: ${res.total}`,
+      ui.ButtonSet.OK
+    );
+  } catch (err) {
+    ui.alert('Erro', 'Falha ao sincronizar com SisFolgas: ' + err.message, ui.ButtonSet.OK);
+  }
+}
+
+/**
  * Procedimento seguro de inicialização idempotente do sistema (Bootstrap)
  */
 function apiBootstrapSystem() {
@@ -33,6 +116,7 @@ function apiBootstrapSystem() {
   Auth.ensureDefaultAdmin();
   Unidades.ensureDefaultGrupamentos();
   Unidades.ensureDefaultPostos();
+  SecoesOperacionais.ensureDefaultCatalogo();
   const seedReport = SeedData.populateSeedData();
 
   return {
