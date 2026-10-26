@@ -173,11 +173,130 @@ const Militares = (function() {
     }));
   }
 
+  /**
+   * Cadastro rápido de militar (utilizado diretamente no modal da viatura ou novidade de pessoal)
+   */
+  function quickRegisterMilitar(data) {
+    const cleanRe = Utils.normalizeRE(data.re);
+    if (!cleanRe) throw new Error('Número do RE é obrigatório.');
+    if (!data.nome_completo) throw new Error('Nome completo é obrigatório.');
+    const grad = data.graduacao ? String(data.graduacao).trim() : 'SD PM';
+
+    const existing = Database.find('MILITARES', m => Utils.normalizeRE(m.re) === cleanRe);
+    if (existing && existing.length > 0) {
+      const updated = Database.update('MILITARES', existing[0].id, {
+        digito: data.digito !== undefined ? String(data.digito).trim() : existing[0].digito,
+        nome_completo: String(data.nome_completo).trim(),
+        graduacao: grad,
+        unidade_ref: data.unidade_ref || existing[0].unidade_ref || '2º SGB',
+        atualizado_em: Utils.nowTimestamp()
+      });
+      return {
+        ...updated,
+        display_formatado: Utils.formatMilitarDisplay(updated.graduacao, updated.re, updated.digito, updated.nome_completo)
+      };
+    }
+
+    const newMilitar = {
+      id: Utils.generateId('mil'),
+      re: cleanRe,
+      digito: data.digito || '',
+      nome_completo: String(data.nome_completo).trim(),
+      nome_guerra: String(data.nome_guerra || '').trim(),
+      graduacao: grad,
+      unidade_ref: String(data.unidade_ref || '2º SGB').trim(),
+      ativo: 'SIM',
+      criado_em: Utils.nowTimestamp(),
+      atualizado_em: Utils.nowTimestamp()
+    };
+    Database.insert('MILITARES', newMilitar);
+
+    try {
+      Auth.provisionUserForMilitar(newMilitar.re, newMilitar.nome_completo, Config.ROLES.OPERACIONAL);
+    } catch (e) {}
+
+    return {
+      ...newMilitar,
+      display_formatado: Utils.formatMilitarDisplay(newMilitar.graduacao, newMilitar.re, newMilitar.digito, newMilitar.nome_completo)
+    };
+  }
+
+  /**
+   * Espelhamento e sincronização com a aba EFETIVO da planilha SisFolgas
+   */
+  function syncEfetivoFromSisFolgas() {
+    try {
+      if (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.openById) {
+        const ss = SpreadsheetApp.openById(Config.SPREADSHEET_SISFOLGAS_ID);
+        let sheet = ss.getSheetByName(Config.TAB_SISFOLGAS_EFETIVO);
+        if (!sheet) sheet = ss.getSheetByName('MILITARES');
+        if (sheet) {
+          const data = sheet.getDataRange().getValues();
+          if (data.length > 1) {
+            const headers = data[0].map(h => String(h || '').trim().toUpperCase());
+            const idxRe = headers.findIndex(h => h === 'RE' || h.includes('RE'));
+            const idxDig = headers.findIndex(h => h === 'DIG' || h.includes('DIG'));
+            const idxGrad = headers.findIndex(h => h.includes('POSTO') || h.includes('GRAD'));
+            const idxNome = headers.findIndex(h => h.includes('NOME') && !h.includes('GUERRA'));
+            const idxGuerra = headers.findIndex(h => h.includes('GUERRA'));
+            const idxUnidade = headers.findIndex(h => h.includes('UNIDADE') || h.includes('ESTACAO') || h.includes('ESTAÇÃO'));
+
+            let count = 0;
+            for (let i = 1; i < data.length; i++) {
+              const row = data[i];
+              const rawRe = idxRe !== -1 ? String(row[idxRe] || '') : '';
+              const cleanRe = Utils.normalizeRE(rawRe);
+              if (!cleanRe) continue;
+
+              const digito = idxDig !== -1 ? String(row[idxDig] || '').trim() : '';
+              const nome = idxNome !== -1 ? String(row[idxNome] || '').trim() : '';
+              const grad = idxGrad !== -1 ? String(row[idxGrad] || '').trim() : 'SD PM';
+              const guerra = idxGuerra !== -1 ? String(row[idxGuerra] || '').trim() : '';
+              const unid = idxUnidade !== -1 ? String(row[idxUnidade] || '').trim() : '2º SGB';
+
+              const existing = Database.find('MILITARES', m => Utils.normalizeRE(m.re) === cleanRe);
+              if (existing && existing.length > 0) {
+                Database.update('MILITARES', existing[0].id, {
+                  digito: digito || existing[0].digito,
+                  nome_completo: nome || existing[0].nome_completo,
+                  graduacao: grad || existing[0].graduacao,
+                  nome_guerra: guerra || existing[0].nome_guerra,
+                  unidade_ref: unid || existing[0].unidade_ref,
+                  atualizado_em: Utils.nowTimestamp()
+                });
+              } else {
+                Database.insert('MILITARES', {
+                  id: Utils.generateId('mil'),
+                  re: cleanRe,
+                  digito: digito,
+                  nome_completo: nome || `Militar RE ${cleanRe}`,
+                  nome_guerra: guerra,
+                  graduacao: grad,
+                  unidade_ref: unid,
+                  ativo: 'SIM',
+                  criado_em: Utils.nowTimestamp(),
+                  atualizado_em: Utils.nowTimestamp()
+                });
+              }
+              count++;
+            }
+            return { success: true, count: count };
+          }
+        }
+      }
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+    return { success: false, error: 'Planilha SisFolgas não acessível diretamente no ambiente atual' };
+  }
+
   return {
     findByRE: findByRE,
     search: search,
     createMilitar: createMilitar,
     updateMilitar: updateMilitar,
+    quickRegisterMilitar: quickRegisterMilitar,
+    syncEfetivoFromSisFolgas: syncEfetivoFromSisFolgas,
     listAll: listAll
   };
 })();

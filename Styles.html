@@ -1048,6 +1048,167 @@
   }
 
   /* ========================================================================
+     ESTILOS: NOVIDADE DE PESSOAL (AUTOSSOMA), CATÁLOGO E FROTA COM GUARNIÇÃO
+     ======================================================================== */
+  .pessoal-counters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.85rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .counter-card {
+    background: rgba(17, 24, 39, 0.65);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 0.85rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    transition: var(--transition);
+  }
+
+  .counter-card:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(23, 32, 51, 0.75);
+  }
+
+  .counter-card .counter-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+  }
+
+  .counter-card .counter-val {
+    font-family: var(--font-heading);
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--brand-red);
+    line-height: 1;
+  }
+
+  .counter-card.active-count {
+    border-color: rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.08);
+  }
+
+  .complemento-builder-box {
+    background: rgba(17, 24, 39, 0.5);
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-md);
+    padding: 1.15rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .complemento-item-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(23, 32, 51, 0.7);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 0.65rem 0.95rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  .complemento-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  /* Viatura Cards & Guarnição */
+  .viatura-card {
+    background: rgba(17, 24, 39, 0.6);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+    transition: var(--transition);
+  }
+
+  .viatura-card:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .viatura-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.65rem;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .viatura-prefix-title {
+    font-family: var(--font-heading);
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .guarnicao-section {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-sm);
+    padding: 0.85rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .guarnicao-title {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    margin-bottom: 0.65rem;
+  }
+
+  .guarnicao-role-row {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .guarnicao-role-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .catalogo-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  .catalogo-table th, .catalogo-table td {
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid var(--border-subtle);
+    text-align: left;
+  }
+
+  .catalogo-table th {
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+  }
+
+  /* ========================================================================
      ESTILOS DE IMPRESSÃO OFICIAL (FRENTE E VERSO - ANEXO "D" À DTZ-003/932/11)
      ======================================================================== */
   @media print {

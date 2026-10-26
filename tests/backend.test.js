@@ -202,22 +202,23 @@ test('3. Autenticação, Troca Obrigatória e Bloqueio de Tentativas', async (t)
 
 test('4. Cálculo Matemático de 24 Horas e Ciclo de Prontidões', async (t) => {
   // Teste de ciclo de prontidões
-  // Data base de referência: 2026-10-24 = Verde
-  assert.equal(Prontidao.calcularProntidao('2026-10-24'), 'Verde');
-  assert.equal(Prontidao.calcularProntidao('2026-10-25'), 'Amarela');
-  assert.equal(Prontidao.calcularProntidao('2026-10-26'), 'Azul');
-  assert.equal(Prontidao.calcularProntidao('2026-10-27'), 'Verde');
+  // Data base de referência: 2026-10-25 = Verde (hoje)
+  // Amanhã 2026-10-26 = Amarela, depois 2026-10-27 = Azul
+  assert.equal(Prontidao.calcularProntidao('2026-10-25'), 'Verde');
+  assert.equal(Prontidao.calcularProntidao('2026-10-26'), 'Amarela');
+  assert.equal(Prontidao.calcularProntidao('2026-10-27'), 'Azul');
+  assert.equal(Prontidao.calcularProntidao('2026-10-28'), 'Verde');
 
-  // Datas passadas
-  assert.equal(Prontidao.calcularProntidao('2026-10-23'), 'Azul');
-  assert.equal(Prontidao.calcularProntidao('2026-10-22'), 'Amarela');
-  assert.equal(Prontidao.calcularProntidao('2026-10-21'), 'Verde');
+  // Ontem
+  assert.equal(Prontidao.calcularProntidao('2026-10-24'), 'Azul');
+  assert.equal(Prontidao.calcularProntidao('2026-10-23'), 'Amarela');
+  assert.equal(Prontidao.calcularProntidao('2026-10-22'), 'Verde');
 
   // Cálculo de término de 24h exatas (Início 07:30 -> Término 07:30 no dia seguinte)
-  const p1 = Prontidao.calcularPeriodoEProntidao('2026-10-24', '07:30');
-  assert.equal(p1.data_inicio, '2026-10-24');
+  const p1 = Prontidao.calcularPeriodoEProntidao('2026-10-25', '07:30');
+  assert.equal(p1.data_inicio, '2026-10-25');
   assert.equal(p1.hora_inicio, '07:30');
-  assert.equal(p1.data_termino, '2026-10-25');
+  assert.equal(p1.data_termino, '2026-10-26');
   assert.equal(p1.hora_termino, '07:30');
   assert.equal(p1.prontidao, 'Verde');
 
@@ -236,7 +237,8 @@ test('5. Busca de Militares e Unidades', async (t) => {
   assert.ok(mil, 'Deve encontrar militar 108154');
   assert.equal(mil.nome_completo, 'André Fonseca Dias');
   assert.equal(mil.graduacao, '1º Sgt PM');
-  assert.equal(mil.display_formatado, '1º Sgt PM — 108154-3 — André Fonseca Dias');
+  // Formato padronizado sem hifens: "1º Sgt PM 108154-3 André Fonseca Dias"
+  assert.equal(mil.display_formatado, '1º Sgt PM 108154-3 André Fonseca Dias');
 
   // Grupamentos (1º ao 25º GB)
   const gbs = Unidades.listGrupamentos();
@@ -396,3 +398,71 @@ test('8. Dashboard, Métricas e Trilha de Auditoria', async (t) => {
   assert.ok(backup.data.REGISTROS_ATIVIDADES, 'Backup deve exportar REGISTROS_ATIVIDADES');
   assert.ok(backup.data.MILITARES, 'Backup deve exportar MILITARES');
 });
+
+test('9. Autossoma de Pessoal via Complementos', async (t) => {
+  const regId = 'test_reg_autossoma';
+
+  // Lança complementos com diferentes categorias
+  const payloadPessoal = {
+    complementos: [
+      { categoria: 'Falta', militar_re: '108154', militar_graduacao: '1º Sgt PM', militar_nome: 'André Fonseca Dias', motivo: 'Injustificada' },
+      { categoria: 'Baixas', militar_re: '20202', militar_graduacao: 'Cb PM', militar_nome: 'Igor Carvalho', motivo: 'CRA' },
+      { categoria: 'Baixas', militar_re: '30303', militar_graduacao: 'Sd PM', militar_nome: 'Lucas Silva', motivo: 'Enfermidade' },
+      { categoria: 'Licença / Convalescença', militar_re: '40404', militar_graduacao: 'Subten PM', militar_nome: 'Roberto Santos', motivo: 'LTS 15 dias' },
+      { categoria: 'Restrição', militar_re: '50505', militar_graduacao: 'Cb PM', militar_nome: 'Marcos Souza', motivo: 'B-60' },
+      { categoria: 'Visitantes', militar_re: '60606', militar_graduacao: 'Cap PM', militar_nome: 'Carlos Lima', motivo: 'Visita técnica' },
+      { categoria: 'Estagiários', militar_re: '70707', militar_graduacao: 'Al Sd PM', militar_nome: 'Pedro Aluno', motivo: 'Estágio EB' }
+    ]
+  };
+
+  const saved = SecoesOperacionais.savePessoal(regId, payloadPessoal);
+  assert.equal(saved.falta, 1, 'Autossoma Falta deve ser 1');
+  assert.equal(saved.baixas, 2, 'Autossoma Baixas deve ser 2');
+  assert.equal(saved.licenca_convalescenca, 1, 'Autossoma Licença deve ser 1');
+  assert.equal(saved.restricao, 1, 'Autossoma Restrição deve ser 1');
+  assert.equal(saved.visitantes, 1, 'Autossoma Visitantes deve ser 1');
+  assert.equal(saved.estagiarios, 1, 'Autossoma Estagiários deve ser 1');
+  assert.equal(saved.complementos.length, 7, 'Deve persistir os 7 complementos individuais');
+});
+
+test('10. Viaturas com Guarnição e Catálogo Permanente', async (t) => {
+  // Catálogo Permanente
+  const catalogo = SecoesOperacionais.getCatalogoMateriais();
+  assert.ok(catalogo.length > 0, 'Catálogo deve ser inicializado com itens padrão');
+
+  const novoItem = SecoesOperacionais.saveItemCatalogo({
+    categoria: 'armamento',
+    tipo: 'Fuzil 5.56 IMBEL IA2',
+    modelo_tamanho: '5.56x45mm',
+    marca_capas: 'IMBEL',
+    numero_serie: 'BR12345',
+    quantidade_padrao: 1
+  });
+  assert.ok(novoItem.id, 'Novo item no catálogo deve ter ID gerado');
+
+  // Viaturas com Guarnição
+  const regId = 'test_reg_vtr_guarnicao';
+  const vtrs = [
+    {
+      prefixo: 'UR-15201',
+      situacao: 'Operando',
+      observacoes: 'KM: 38100',
+      comandante_re: '108154',
+      comandante_nome: '1º Sgt PM 108154-3 André Fonseca Dias',
+      motorista_re: '20202',
+      motorista_nome: 'Cb PM 20202-1 Igor Carvalho',
+      auxiliares: [
+        { re: '30303', nome: 'Lucas Silva', display: 'Sd PM 30303-2 Lucas Silva' }
+      ]
+    }
+  ];
+
+  const savedVtr = SecoesOperacionais.saveViaturas(regId, vtrs);
+  assert.equal(savedVtr.totais.operando, 1);
+  assert.equal(savedVtr.viaturas.length, 1);
+  assert.equal(savedVtr.viaturas[0].comandante_re, '108154');
+  assert.equal(savedVtr.viaturas[0].motorista_re, '20202');
+  assert.equal(savedVtr.viaturas[0].auxiliares.length, 1);
+  assert.equal(savedVtr.viaturas[0].auxiliares[0].re, '30303');
+});
+

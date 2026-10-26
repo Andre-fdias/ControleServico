@@ -186,6 +186,29 @@ const RegistroAtividades = (function() {
     if (payload.ocorrencias !== undefined) SecoesOperacionais.saveOcorrencias(registroId, payload.ocorrencias);
     if (payload.rondas) SecoesOperacionais.saveRondas(registroId, payload.rondas);
 
+    // Assinatura digital automática para Cmt que entra (vinculado ao militar logado ou informado)
+    if (sessionUser && sessionUser.re) {
+      try {
+        const obsEntra = (payload.conferencias && payload.conferencias.cmt_entra_obs) || 'Assinatura digital automática na gravação do livro';
+        const cmtEntraRe = (payload.conferencias && payload.conferencias.cmt_entra_re) ? payload.conferencias.cmt_entra_re : sessionUser.re;
+        Conferencias.validarConferencia(registroId, 'cmt_entra', sessionUser, obsEntra, cmtEntraRe);
+      } catch (e) {}
+    }
+
+    // Processa conferências adicionais informadas no formulário (Modo Testes / Operacional)
+    if (payload.conferencias) {
+      if (payload.conferencias.cmt_sai_re) {
+        try {
+          Conferencias.validarConferencia(registroId, 'cmt_sai', sessionUser, payload.conferencias.cmt_sai_obs || 'Conferência realizada', payload.conferencias.cmt_sai_re);
+        } catch (e) {}
+      }
+      if (payload.conferencias.cmt_pb_re) {
+        try {
+          Conferencias.validarConferencia(registroId, 'cmt_pb', sessionUser, payload.conferencias.cmt_pb_obs || 'Conferência realizada', payload.conferencias.cmt_pb_re);
+        } catch (e) {}
+      }
+    }
+
     Audit.log({
       usuario_re: sessionUser.re,
       usuario_nome: sessionUser.nome_completo,

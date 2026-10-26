@@ -33,7 +33,7 @@ const Conferencias = (function() {
   /**
    * Realiza a validação / conferência oficial por uma autoridade
    */
-  function validarConferencia(registroId, papelKey, sessionUser, observacoes = '') {
+  function validarConferencia(registroId, papelKey, sessionUser, observacoes = '', militarReOverride = null) {
     if (!registroId) throw new Error('ID do registro é obrigatório.');
     if (!sessionUser) throw new Error('Usuário não autenticado.');
 
@@ -47,10 +47,11 @@ const Conferencias = (function() {
       throw new Error('Registro cancelado não permite conferência.');
     }
 
-    // Busca os dados cadastrais do militar que está conferindo
-    const militar = Militares.findByRE(sessionUser.re);
+    // Busca os dados cadastrais do militar que está conferindo (com suporte a override de RE para testes)
+    const reAlvo = militarReOverride ? Utils.normalizeRE(militarReOverride) : sessionUser.re;
+    const militar = Militares.findByRE(reAlvo);
     const graduacao = militar ? militar.graduacao : (sessionUser.perfil === Config.ROLES.ADMIN ? 'ADMIN' : 'MILITAR');
-    const nomeCompleto = militar ? militar.nome_completo : sessionUser.nome_completo;
+    const nomeCompleto = militar ? militar.nome_completo : (militarReOverride ? `Militar RE ${reAlvo}` : sessionUser.nome_completo);
 
     // Remove conferência anterior para o mesmo papel neste registro
     Database.deleteWhere('CONFERENCIAS', {
@@ -63,12 +64,12 @@ const Conferencias = (function() {
       id: Utils.generateId('cnf'),
       registro_id: registroId,
       papel: papelKey,
-      autoridade_re: sessionUser.re,
+      autoridade_re: reAlvo,
       autoridade_graduacao: graduacao,
       autoridade_nome: nomeCompleto,
       status: 'CONFERIDO',
       data_hora: now,
-      ip_hash: Utils.sha256(sessionUser.re + now).slice(0, 16),
+      ip_hash: Utils.sha256(reAlvo + now).slice(0, 16),
       observacoes: String(observacoes || '').trim()
     };
 

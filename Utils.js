@@ -50,13 +50,14 @@ const Utils = (function() {
   }
 
   /**
-   * Formata a apresentação do militar: "1º SGT PM — 108154-3 — André Fonseca Dias"
+   * Formata a apresentação do militar com separação apenas por espaço:
+   * Ex: "1º Sgt PM 108154-3 André Fonseca Dias"
    */
   function formatMilitarDisplay(graduacao, re, digito, nomeCompleto) {
     const grad = graduacao ? String(graduacao).trim() : 'MILITAR';
     const reFormatado = formatRE(re, digito);
     const nome = nomeCompleto ? String(nomeCompleto).trim() : '';
-    return `${grad} — ${reFormatado} — ${nome}`;
+    return `${grad} ${reFormatado} ${nome}`.replace(/\s+/g, ' ').trim();
   }
 
   /**

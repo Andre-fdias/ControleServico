@@ -199,3 +199,123 @@
     </div>
   </div>
 </div>
+
+<!-- MODAL 6: CADASTRAR MATERIAL NO CATÁLOGO PERMANENTE -->
+<div id="modal-catalogo-material" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 style="color: var(--brand-red);">🛡️ Cadastrar Material Bélico no Catálogo</h3>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="App.fecharModal('modal-catalogo-material')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+        Os itens cadastrados aqui ficam permanentemente salvos no acervo da unidade e aparecerão automaticamente nos próximos serviços.
+      </p>
+      <form id="form-modal-catalogo" onsubmit="event.preventDefault(); App.salvarMaterialCatalogoModal();">
+        <div class="form-group">
+          <label class="form-label" for="cat-material-categoria">Categoria:<span class="required">*</span></label>
+          <select class="form-select" id="cat-material-categoria" required>
+            <option value="armamento">Armamento</option>
+            <option value="colete">Colete Balístico</option>
+            <option value="municao">Munição</option>
+            <option value="outros">Outros</option>
+          </select>
+        </div>
+
+        <div class="form-row-grid">
+          <div class="form-group">
+            <label class="form-label" for="cat-material-tipo">Tipo / Descrição:<span class="required">*</span></label>
+            <input type="text" class="form-input" id="cat-material-tipo" required placeholder="Ex: Pistola, Colete Nível II, Munição">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cat-material-modelo">Modelo / Tamanho:</label>
+            <input type="text" class="form-input" id="cat-material-modelo" placeholder="Ex: PT 24/7 PRO .40 ou Tamanho G">
+          </div>
+        </div>
+
+        <div class="form-row-grid">
+          <div class="form-group">
+            <label class="form-label" for="cat-material-marca">Marca / Capas / Fabricante:</label>
+            <input type="text" class="form-input" id="cat-material-marca" placeholder="Ex: Taurus, CBC, Inbrapel">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cat-material-serie">Nº de Série:</label>
+            <input type="text" class="form-input" id="cat-material-serie" placeholder="Ex: SAY15201 (se houver)">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="cat-material-qtd">Quantidade Padrão em Carga:</label>
+          <input type="number" min="1" class="form-input" id="cat-material-qtd" value="1">
+        </div>
+
+        <div class="modal-footer" style="padding-left: 0; padding-right: 0; background: none; border-top: none;">
+          <button type="button" class="btn btn-secondary" onclick="App.fecharModal('modal-catalogo-material')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar no Catálogo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL 7: CADASTRO RÁPIDO DE MILITAR (EM OPERAÇÃO) -->
+<div id="modal-militar-rapido" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 style="color: var(--brand-red);">👨‍🚒 Cadastro Rápido de Militar</h3>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="App.fecharModal('modal-militar-rapido')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+        Cadastre o militar rapidamente para compor guarnições ou lançar novidades de pessoal do serviço.
+      </p>
+      <form id="form-modal-militar-rapido" onsubmit="event.preventDefault(); App.salvarMilitarRapidoModal();">
+        <input type="hidden" id="modal-rapido-callback-target">
+        <div class="form-row-grid">
+          <div class="form-group">
+            <label class="form-label" for="modal-rapido-re">RE:<span class="required">*</span></label>
+            <input type="text" class="form-input" id="modal-rapido-re" required placeholder="Ex: 108154">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="modal-rapido-digito">Dígito:</label>
+            <input type="text" class="form-input" id="modal-rapido-digito" maxlength="2" placeholder="Ex: 3">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="modal-rapido-graduacao">Posto / Graduação:<span class="required">*</span></label>
+          <select class="form-select" id="modal-rapido-graduacao" required>
+            <optgroup label="1. Oficiais (Maior para o menor)">
+              <option value="CEL PM">CEL PM — Coronel PM</option>
+              <option value="TEN CEL PM">TEN CEL PM — Tenente-Coronel PM</option>
+              <option value="MAJ PM">MAJ PM — Major PM</option>
+              <option value="CAP PM">CAP PM — Capitão PM</option>
+              <option value="1º TEN PM">1º TEN PM — 1º Tenente PM</option>
+              <option value="2º TEN PM">2º TEN PM — 2º Tenente PM</option>
+              <option value="ASP OF PM">ASP OF PM — Aspirante a Oficial PM</option>
+            </optgroup>
+            <optgroup label="2. Praças (Maior para o menor)">
+              <option value="SUBTEN PM">SUBTEN PM — Subtenente PM</option>
+              <option value="1º SGT PM">1º SGT PM — 1º Sargento PM</option>
+              <option value="2º SGT PM">2º SGT PM — 2º Sargento PM</option>
+              <option value="3º SGT PM">3º SGT PM — 3º Sargento PM</option>
+              <option value="CB PM">CB PM — Cabo PM</option>
+              <option value="SD PM" selected>SD PM — Soldado PM</option>
+              <option value="AL SD PM">AL SD PM — Aluno Soldado PM</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="modal-rapido-nome">Nome Completo:<span class="required">*</span></label>
+          <input type="text" class="form-input" id="modal-rapido-nome" required placeholder="Nome completo do militar">
+        </div>
+
+        <div class="modal-footer" style="padding-left: 0; padding-right: 0; background: none; border-top: none;">
+          <button type="button" class="btn btn-secondary" onclick="App.fecharModal('modal-militar-rapido')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Cadastrar e Vincular</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

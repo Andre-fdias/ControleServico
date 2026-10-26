@@ -122,85 +122,158 @@
          AS 12 SEÇÕES OPERACIONAIS (FRENTE E VERSO DO ANEXO D)
          ==================================================================== -->
 
-    <!-- SEÇÃO 1: NOVIDADE DE PESSOAL -->
+    <!-- SEÇÃO 1: NOVIDADE DE PESSOAL (AUTOSSOMA VIA COMPLEMENTO) -->
     <div class="section-accordion active" id="sec-accordion-1">
       <button type="button" class="section-header-btn" onclick="App.toggleAccordion('sec-accordion-1')">
         <div class="section-title-wrap">
           <div class="section-badge-num">1</div>
-          <span>NOVIDADE DE PESSOAL</span>
+          <span>NOVIDADE DE PESSOAL (AUTOSSOMA VIA COMPLEMENTO)</span>
         </div>
         <span class="accordion-arrow">▼</span>
       </button>
       <div class="section-body">
-        <div class="form-row-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));">
-          <div class="form-group">
-            <label class="form-label" for="sec1-falta">Falta:</label>
-            <input type="number" min="0" class="form-input" id="sec1-falta" value="0">
+        <!-- 6 Contadores em Autossoma -->
+        <div class="pessoal-counters-grid">
+          <div class="counter-card" id="card-cnt-falta">
+            <span class="counter-label">Falta</span>
+            <span class="counter-val" id="sec1-falta-val">0</span>
           </div>
-          <div class="form-group">
-            <label class="form-label" for="sec1-baixas">Baixas:</label>
-            <input type="number" min="0" class="form-input" id="sec1-baixas" value="0">
+          <div class="counter-card" id="card-cnt-baixas">
+            <span class="counter-label">Baixas</span>
+            <span class="counter-val" id="sec1-baixas-val">0</span>
           </div>
-          <div class="form-group">
-            <label class="form-label" for="sec1-visitantes">Visitantes:</label>
-            <input type="number" min="0" class="form-input" id="sec1-visitantes" value="0">
+          <div class="counter-card" id="card-cnt-visitantes">
+            <span class="counter-label">Visitantes</span>
+            <span class="counter-val" id="sec1-visitantes-val">0</span>
           </div>
-          <div class="form-group">
-            <label class="form-label" for="sec1-licenca">Licença / Convalescença:</label>
-            <input type="number" min="0" class="form-input" id="sec1-licenca" value="0">
+          <div class="counter-card" id="card-cnt-licenca">
+            <span class="counter-label">Licença / Convalescença</span>
+            <span class="counter-val" id="sec1-licenca-val">0</span>
           </div>
-          <div class="form-group">
-            <label class="form-label" for="sec1-restricao">Restrição:</label>
-            <input type="number" min="0" class="form-input" id="sec1-restricao" value="0">
+          <div class="counter-card" id="card-cnt-restricao">
+            <span class="counter-label">Restrição</span>
+            <span class="counter-val" id="sec1-restricao-val">0</span>
           </div>
-          <div class="form-group">
-            <label class="form-label" for="sec1-estagiarios">Estagiários:</label>
-            <input type="number" min="0" class="form-input" id="sec1-estagiarios" value="0">
+          <div class="counter-card" id="card-cnt-estagiarios">
+            <span class="counter-label">Estagiários</span>
+            <span class="counter-val" id="sec1-estagiarios-val">0</span>
           </div>
         </div>
 
-        <div class="form-group" style="margin-bottom: 0;">
-          <label class="form-label" for="sec1-complemento">Complemento:</label>
-          <textarea class="form-textarea" id="sec1-complemento" placeholder="Detalhe nomes, justificativas e informações complementares sobre o efetivo..."></textarea>
+        <!-- Adicionar Complemento com Autopreenchimento e Autossoma -->
+        <div class="complemento-builder-box">
+          <div style="font-size: 0.9rem; font-weight: 700; color: #fff; margin-bottom: 0.75rem;">
+            ➕ Lançar Complemento de Pessoal:
+          </div>
+          <div class="form-row-grid">
+            <div class="form-group">
+              <label class="form-label" for="comp-categoria">Categoria:<span class="required">*</span></label>
+              <select class="form-select" id="comp-categoria">
+                <option value="Falta">Falta</option>
+                <option value="Baixas">Baixas</option>
+                <option value="Visitantes">Visitantes</option>
+                <option value="Licença / Convalescença">Licença / Convalescença</option>
+                <option value="Restrição">Restrição</option>
+                <option value="Estagiários">Estagiários</option>
+              </select>
+            </div>
+            <div class="form-group" style="position: relative;">
+              <label class="form-label" for="comp-re">Pesquisar Militar por RE:<span class="required">*</span></label>
+              <div class="input-with-icon">
+                <span class="input-icon">🔍</span>
+                <input type="text" class="form-input" id="comp-re" placeholder="Digite o RE para buscar..." oninput="App.buscarMilitarComplemento(this.value)">
+              </div>
+              <div id="autocomplete-comp-results" class="autocomplete-results"></div>
+            </div>
+          </div>
+
+          <div class="form-row-grid">
+            <div class="form-group">
+              <label class="form-label" for="comp-graduacao">Posto / Graduação (Hierarquia PMESP):<span class="required">*</span></label>
+              <select class="form-select" id="comp-graduacao">
+                <optgroup label="1. Oficiais (Maior para o menor)">
+                  <option value="CEL PM">CEL PM — Coronel PM</option>
+                  <option value="TEN CEL PM">TEN CEL PM — Tenente-Coronel PM</option>
+                  <option value="MAJ PM">MAJ PM — Major PM</option>
+                  <option value="CAP PM">CAP PM — Capitão PM</option>
+                  <option value="1º TEN PM">1º TEN PM — 1º Tenente PM</option>
+                  <option value="2º TEN PM">2º TEN PM — 2º Tenente PM</option>
+                  <option value="ASP OF PM">ASP OF PM — Aspirante a Oficial PM</option>
+                </optgroup>
+                <optgroup label="2. Praças (Maior para o menor)">
+                  <option value="SUBTEN PM">SUBTEN PM — Subtenente PM</option>
+                  <option value="1º SGT PM">1º SGT PM — 1º Sargento PM</option>
+                  <option value="2º SGT PM">2º SGT PM — 2º Sargento PM</option>
+                  <option value="3º SGT PM">3º SGT PM — 3º Sargento PM</option>
+                  <option value="CB PM">CB PM — Cabo PM</option>
+                  <option value="SD PM" selected>SD PM — Soldado PM</option>
+                  <option value="AL SD PM">AL SD PM — Aluno Soldado PM</option>
+                </optgroup>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="comp-nome">Nome Completo:<span class="required">*</span></label>
+              <input type="text" class="form-input" id="comp-nome" placeholder="Preenchido via RE ou editável">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="comp-motivo">Motivo / Justificativa / Observação:</label>
+            <div style="display: flex; gap: 0.5rem;">
+              <input type="text" class="form-input" id="comp-motivo" placeholder="Ex: Dispensado pelo médico; Licença-prêmio; Convalescença...">
+              <button type="button" class="btn btn-primary" onclick="App.incluirComplemento()">
+                ➕ Incluir
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lista de complementos lançados -->
+        <div id="container-complementos-lista"></div>
+
+        <div class="form-group" style="margin-top: 1rem; margin-bottom: 0;">
+          <label class="form-label" for="sec1-complemento">Complemento Geral (Observações adicionais do efetivo):</label>
+          <textarea class="form-textarea" id="sec1-complemento" placeholder="Detalhes gerais e informações complementares sobre o efetivo da prontidão..."></textarea>
         </div>
       </div>
     </div>
 
-    <!-- SEÇÃO 2: MATERIAL BÉLICO -->
+    <!-- SEÇÃO 2: MATERIAL BÉLICO (CATÁLOGO REUTILIZÁVEL E ACERVO) -->
     <div class="section-accordion" id="sec-accordion-2">
       <button type="button" class="section-header-btn" onclick="App.toggleAccordion('sec-accordion-2')">
         <div class="section-title-wrap">
           <div class="section-badge-num">2</div>
-          <span>MATERIAL BÉLICO</span>
+          <span>MATERIAL BÉLICO (ACERVO DA UNIDADE)</span>
         </div>
         <span class="accordion-arrow">▼</span>
       </button>
       <div class="section-body">
-        <!-- 2.1 Armamento -->
-        <div style="margin-bottom: 1.5rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-            <h4 style="font-size: 0.95rem; color: #fff;">2.1. ARMAMENTO (Tipo, Modelo, Marca, Nº de Série)</h4>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="App.adicionarArmamento()">➕ Adicionar Armamento</button>
-          </div>
-          <div id="container-armamentos"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
+            Materiais em carga cadastrados no acervo permanente da unidade (salvos para uso contínuo):
+          </p>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="App.abrirModalCatalogoMaterial()">
+            🛡️ Cadastrar Novo Material no Catálogo
+          </button>
         </div>
 
-        <!-- 2.2 Colete Balístico -->
-        <div style="margin-bottom: 1.5rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-            <h4 style="font-size: 0.95rem; color: #fff;">2.2. COLETE BALÍSTICO (Tamanho, Quantidade, Capas, Nº de Série)</h4>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="App.adicionarColete()">➕ Adicionar Colete</button>
-          </div>
-          <div id="container-coletes"></div>
-        </div>
-
-        <!-- 2.3 Munição -->
-        <div style="margin-bottom: 1.5rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-            <h4 style="font-size: 0.95rem; color: #fff;">2.3. MUNIÇÃO (Tipo, Quantidade)</h4>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="App.adicionarMunicao()">➕ Adicionar Munição</button>
-          </div>
-          <div id="container-municoes"></div>
+        <!-- Tabela do Catálogo Permanente -->
+        <div style="overflow-x: auto; margin-bottom: 1.5rem;">
+          <table class="catalogo-table">
+            <thead>
+              <tr>
+                <th style="width: 40px; text-align: center;">Sel.</th>
+                <th>Categoria</th>
+                <th>Tipo / Modelo</th>
+                <th>Marca / Capas</th>
+                <th>Nº de Série</th>
+                <th style="width: 80px; text-align: center;">Qtd</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-catalogo-materiais">
+              <!-- Renderizado dinamicamente via script -->
+            </tbody>
+          </table>
         </div>
 
         <!-- Outros materiais bélicos -->
@@ -228,21 +301,31 @@
       </div>
     </div>
 
-    <!-- SEÇÃO 4: SITUAÇÃO DE VIATURAS -->
+    <!-- SEÇÃO 4: SITUAÇÃO DE VIATURAS COM GUARNIÇÃO -->
     <div class="section-accordion" id="sec-accordion-4">
       <button type="button" class="section-header-btn" onclick="App.toggleAccordion('sec-accordion-4')">
         <div class="section-title-wrap">
           <div class="section-badge-num">4</div>
-          <span>SITUAÇÃO DE VIATURAS</span>
+          <span>SITUAÇÃO DE VIATURAS & GUARNIÇÃO</span>
         </div>
         <span class="accordion-arrow">▼</span>
       </button>
       <div class="section-body">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem;">
-          <p style="font-size: 0.85rem; color: var(--text-secondary);">Cadastre as viaturas em serviço e sua respectiva condição funcional:</p>
-          <button type="button" class="btn btn-secondary btn-sm" onclick="App.adicionarViatura()">➕ Adicionar Viatura</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
+            Viaturas da frota da unidade e escalação dos militares que compõem a guarnição (Cmt, Motorista e Auxiliares):
+          </p>
+          <div style="display: flex; gap: 0.5rem;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="App.abrirModalMilitarRapido()">
+              👨‍🚒 Cadastrar Militar Rápido
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="App.adicionarViaturaManual()">
+              ➕ Adicionar Viatura
+            </button>
+          </div>
         </div>
 
+        <!-- Container de Cards de Viaturas com Guarnição -->
         <div id="container-viaturas"></div>
 
         <!-- Totais automáticos -->
@@ -499,6 +582,14 @@
             <div class="conference-status-tag" id="tag-conf-cmt-sai">
               <span class="status-badge badge-rascunho">Pendente</span>
             </div>
+            <div class="form-group" style="margin-bottom: 0.5rem; position: relative;">
+              <label class="form-label" style="font-size: 0.75rem;" for="conf-input-sai-re">Designar Cmt que Sai (RE):</label>
+              <div class="input-with-icon">
+                <span class="input-icon">🔍</span>
+                <input type="text" class="form-input" id="conf-input-sai-re" placeholder="RE do Cmt que Sai" oninput="App.buscarAutoridadeConf('sai', this.value)">
+              </div>
+              <div id="autocomplete-conf-sai" class="autocomplete-results"></div>
+            </div>
             <div class="conference-info-row">
               Graduação: <strong id="conf-sai-grad">-</strong>
             </div>
@@ -526,6 +617,14 @@
             <div class="conference-status-tag" id="tag-conf-cmt-entra">
               <span class="status-badge badge-rascunho">Pendente</span>
             </div>
+            <div class="form-group" style="margin-bottom: 0.5rem; position: relative;">
+              <label class="form-label" style="font-size: 0.75rem;" for="conf-input-entra-re">Designar Cmt que Entra (RE):</label>
+              <div class="input-with-icon">
+                <span class="input-icon">🔍</span>
+                <input type="text" class="form-input" id="conf-input-entra-re" placeholder="RE do Cmt que Entra" oninput="App.buscarAutoridadeConf('entra', this.value)">
+              </div>
+              <div id="autocomplete-conf-entra" class="autocomplete-results"></div>
+            </div>
             <div class="conference-info-row">
               Graduação: <strong id="conf-entra-grad">-</strong>
             </div>
@@ -538,6 +637,9 @@
             <div class="conference-info-row" style="font-size: 0.75rem; color: var(--text-muted);" id="conf-entra-data">
               Data/Hora: Não assinado
             </div>
+            <span style="font-size: 0.72rem; color: var(--brand-blue); display: block; margin-top: 4px;">
+              ⚡ Assinatura vinculada automaticamente ao gravar.
+            </span>
           </div>
           <div style="margin-top: 1rem;">
             <button type="button" class="btn btn-secondary btn-sm" style="width: 100%;" id="btn-conf-entra" onclick="App.assinarConferencia('cmt_entra')">
@@ -552,6 +654,14 @@
             <div class="conference-role-title">Cmt do PB — Conferência</div>
             <div class="conference-status-tag" id="tag-conf-cmt-pb">
               <span class="status-badge badge-rascunho">Pendente</span>
+            </div>
+            <div class="form-group" style="margin-bottom: 0.5rem; position: relative;">
+              <label class="form-label" style="font-size: 0.75rem;" for="conf-input-pb-re">Designar Cmt do PB (RE):</label>
+              <div class="input-with-icon">
+                <span class="input-icon">🔍</span>
+                <input type="text" class="form-input" id="conf-input-pb-re" placeholder="RE do Cmt do PB" oninput="App.buscarAutoridadeConf('pb', this.value)">
+              </div>
+              <div id="autocomplete-conf-pb" class="autocomplete-results"></div>
             </div>
             <div class="conference-info-row">
               Posto: <strong id="conf-pb-grad">-</strong>
