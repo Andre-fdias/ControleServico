@@ -26,6 +26,34 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (e && e.parameter && e.parameter.checkRe) {
+      const re = Utils.normalizeRE(e.parameter.checkRe);
+      let user = null;
+      let militar = null;
+      let sampleMilitares = [];
+      let totalMilitares = 0;
+      let totalUsuarios = 0;
+      try {
+        const allUsers = Database.getAll('USUARIOS');
+        totalUsuarios = allUsers.length;
+        user = allUsers.find(u => Utils.normalizeRE(u.re) === re) || null;
+
+        const allMils = Database.getAll('MILITARES');
+        totalMilitares = allMils.length;
+        militar = allMils.find(m => Utils.normalizeRE(m.re) === re) || null;
+        sampleMilitares = allMils.slice(0, 10).map(m => ({ re: m.re, nome: m.nome_completo || m.nome_guerra, ativo: m.ativo }));
+      } catch (err) {}
+
+      return ContentService.createTextOutput(JSON.stringify({
+        searchedRe: re,
+        totalUsuarios,
+        totalMilitares,
+        userFound: user ? { re: user.re, ativo: user.ativo, forcar_troca_senha: user.forcar_troca_senha, salt: !!user.salt } : null,
+        militarFound: militar,
+        sampleMilitares
+      }, null, 2)).setMimeType(ContentService.MimeType.JSON);
+    }
+
     const template = HtmlService.createTemplateFromFile('Index');
     return template.evaluate()
       .setTitle('Livro de Registro de Atividades — Corpo de Bombeiros PMESP')
