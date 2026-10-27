@@ -406,6 +406,7 @@ test('9. Autossoma de Pessoal via Complementos', async (t) => {
   const payloadPessoal = {
     complementos: [
       { categoria: 'Falta', militar_re: '108154', militar_graduacao: '1º Sgt PM', militar_nome: 'André Fonseca Dias', motivo: 'Injustificada' },
+      { categoria: 'Folga', militar_re: '80808', militar_graduacao: 'Cb PM', militar_nome: 'Marcos Folga', motivo: 'Folga compensatória' },
       { categoria: 'Baixas', militar_re: '20202', militar_graduacao: 'Cb PM', militar_nome: 'Igor Carvalho', motivo: 'CRA' },
       { categoria: 'Baixas', militar_re: '30303', militar_graduacao: 'Sd PM', militar_nome: 'Lucas Silva', motivo: 'Enfermidade' },
       { categoria: 'Licença / Convalescença', militar_re: '40404', militar_graduacao: 'Subten PM', militar_nome: 'Roberto Santos', motivo: 'LTS 15 dias' },
@@ -417,12 +418,13 @@ test('9. Autossoma de Pessoal via Complementos', async (t) => {
 
   const saved = SecoesOperacionais.savePessoal(regId, payloadPessoal);
   assert.equal(saved.falta, 1, 'Autossoma Falta deve ser 1');
+  assert.equal(saved.folga, 1, 'Autossoma Folga deve ser 1');
   assert.equal(saved.baixas, 2, 'Autossoma Baixas deve ser 2');
   assert.equal(saved.licenca_convalescenca, 1, 'Autossoma Licença deve ser 1');
   assert.equal(saved.restricao, 1, 'Autossoma Restrição deve ser 1');
   assert.equal(saved.visitantes, 1, 'Autossoma Visitantes deve ser 1');
   assert.equal(saved.estagiarios, 1, 'Autossoma Estagiários deve ser 1');
-  assert.equal(saved.complementos.length, 7, 'Deve persistir os 7 complementos individuais');
+  assert.equal(saved.complementos.length, 8, 'Deve persistir os 8 complementos individuais');
 });
 
 test('10. Viaturas com Guarnição e Catálogo Permanente', async (t) => {

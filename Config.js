@@ -87,6 +87,7 @@ const Config = (function() {
   // Categorias de Novidades de Pessoal com Autossoma
   const CATEGORIAS_PESSOAL = [
     'Falta',
+    'Folga',
     'Baixas',
     'Visitantes',
     'Licença / Convalescença',
@@ -199,6 +200,7 @@ const Config = (function() {
       'id',
       'registro_id',
       'falta',
+      'folga',
       'baixas',
       'visitantes',
       'licenca_convalescenca',

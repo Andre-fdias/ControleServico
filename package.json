@@ -6,9 +6,18 @@
   "scripts": {
     "start": "node dev_server.js",
     "test": "node --test tests/*.test.js",
-    "push": "cmd.exe /c npx @google/clasp push",
-    "deploy": "cmd.exe /c npx @google/clasp deploy",
-    "open": "cmd.exe /c npx @google/clasp open"
+    "push": "cmd.exe /c npx.cmd @google/clasp push --force",
+    "deploy": "cmd.exe /c npx.cmd @google/clasp deploy -d AutoDeploy",
+    "open": "cmd.exe /c npx.cmd @google/clasp open",
+    "clasp:status": "cmd.exe /c npx.cmd @google/clasp status",
+    "clasp:push": "cmd.exe /c npx.cmd @google/clasp push --force",
+    "clasp:pull": "cmd.exe /c npx.cmd @google/clasp pull",
+    "clasp:deploy": "cmd.exe /c npx.cmd @google/clasp deploy -d AutoDeploy",
+    "clasp:deployments": "cmd.exe /c npx.cmd @google/clasp deployments",
+    "clasp:open": "cmd.exe /c npx.cmd @google/clasp open",
+    "clasp:open:webapp": "cmd.exe /c npx.cmd @google/clasp open --webapp",
+    "clasp:logs": "cmd.exe /c npx.cmd @google/clasp logs",
+    "clasp:ship": "cmd.exe /c npx.cmd @google/clasp push --force && npx.cmd @google/clasp deploy -d AutoDeploy"
   },
   "devDependencies": {
     "@google/clasp": "^2.4.2"

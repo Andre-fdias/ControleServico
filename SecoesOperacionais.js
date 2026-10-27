@@ -14,6 +14,7 @@ const SecoesOperacionais = (function() {
 
     // Calcula a autossoma por categoria a partir dos complementos informados
     let faltaCount = 0;
+    let folgaCount = 0;
     let baixasCount = 0;
     let visitantesCount = 0;
     let licencaCount = 0;
@@ -24,6 +25,7 @@ const SecoesOperacionais = (function() {
       complementosList.forEach(item => {
         const cat = String(item.categoria || '').trim().toLowerCase();
         if (cat === 'falta') faltaCount++;
+        else if (cat === 'folga') folgaCount++;
         else if (cat === 'baixas' || cat === 'baixa') baixasCount++;
         else if (cat === 'visitantes' || cat === 'visitante') visitantesCount++;
         else if (cat.includes('licença') || cat.includes('convalescença') || cat.includes('licenca')) licencaCount++;
@@ -33,6 +35,7 @@ const SecoesOperacionais = (function() {
     } else {
       // Fallback para valores diretos caso não haja complementos detalhados
       faltaCount = Utils.parseNonNegativeInt(data.falta, 0);
+      folgaCount = Utils.parseNonNegativeInt(data.folga, 0);
       baixasCount = Utils.parseNonNegativeInt(data.baixas, 0);
       visitantesCount = Utils.parseNonNegativeInt(data.visitantes, 0);
       licencaCount = Utils.parseNonNegativeInt(data.licenca_convalescenca, 0);
@@ -43,6 +46,7 @@ const SecoesOperacionais = (function() {
     const cleanData = {
       registro_id: registroId,
       falta: faltaCount,
+      folga: folgaCount,
       baixas: baixasCount,
       visitantes: visitantesCount,
       licenca_convalescenca: licencaCount,
@@ -103,6 +107,7 @@ const SecoesOperacionais = (function() {
       const p = list[0];
       return {
         falta: Utils.parseNonNegativeInt(p.falta, 0),
+        folga: Utils.parseNonNegativeInt(p.folga, 0),
         baixas: Utils.parseNonNegativeInt(p.baixas, 0),
         visitantes: Utils.parseNonNegativeInt(p.visitantes, 0),
         licenca_convalescenca: Utils.parseNonNegativeInt(p.licenca_convalescenca, 0),
@@ -115,6 +120,7 @@ const SecoesOperacionais = (function() {
 
     return {
       falta: 0,
+      folga: 0,
       baixas: 0,
       visitantes: 0,
       licenca_convalescenca: 0,
@@ -863,6 +869,7 @@ const SecoesOperacionais = (function() {
     saveViaturas: saveViaturas,
     getViaturas: getViaturas,
     listViaturasFrota: listViaturasFrota,
+    ensureDefaultCatalogo: ensureDefaultCatalogo,
     getCatalogoMateriais: getCatalogoMateriais,
     saveItemCatalogo: saveItemCatalogo,
     deleteItemCatalogo: deleteItemCatalogo,

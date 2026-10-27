@@ -613,11 +613,12 @@ const App = (function() {
   }
 
   function atualizarAutossomaPessoal() {
-    let falta = 0, baixas = 0, visitantes = 0, licenca = 0, restricao = 0, estagiarios = 0;
+    let falta = 0, folga = 0, baixas = 0, visitantes = 0, licenca = 0, restricao = 0, estagiarios = 0;
 
     STATE.complementosList.forEach(c => {
       const cat = String(c.categoria || '').trim().toLowerCase();
       if (cat === 'falta') falta++;
+      else if (cat === 'folga') folga++;
       else if (cat === 'baixas' || cat === 'baixa') baixas++;
       else if (cat === 'visitantes' || cat === 'visitante') visitantes++;
       else if (cat.includes('licença') || cat.includes('convalescença') || cat.includes('licenca')) licenca++;
@@ -636,6 +637,7 @@ const App = (function() {
     };
 
     updateCard('sec1-falta-val', 'card-cnt-falta', falta);
+    updateCard('sec1-folga-val', 'card-cnt-folga', folga);
     updateCard('sec1-baixas-val', 'card-cnt-baixas', baixas);
     updateCard('sec1-visitantes-val', 'card-cnt-visitantes', visitantes);
     updateCard('sec1-licenca-val', 'card-cnt-licenca', licenca);
@@ -1301,6 +1303,7 @@ const App = (function() {
     atualizarAutossomaPessoal();
     if (STATE.complementosList.length === 0) {
       document.getElementById('sec1-falta-val').innerText = p.falta || 0;
+      if (document.getElementById('sec1-folga-val')) document.getElementById('sec1-folga-val').innerText = p.folga || 0;
       document.getElementById('sec1-baixas-val').innerText = p.baixas || 0;
       document.getElementById('sec1-visitantes-val').innerText = p.visitantes || 0;
       document.getElementById('sec1-licenca-val').innerText = p.licenca_convalescenca || 0;
@@ -1548,6 +1551,7 @@ const App = (function() {
         },
         pessoal: {
           falta: parseInt(document.getElementById('sec1-falta-val').innerText, 10) || 0,
+          folga: parseInt(document.getElementById('sec1-folga-val').innerText, 10) || 0,
           baixas: parseInt(document.getElementById('sec1-baixas-val').innerText, 10) || 0,
           visitantes: parseInt(document.getElementById('sec1-visitantes-val').innerText, 10) || 0,
           licenca_convalescenca: parseInt(document.getElementById('sec1-licenca-val').innerText, 10) || 0,
@@ -1742,6 +1746,8 @@ const App = (function() {
     // Seção 1
     const pes = reg.pessoal || {};
     doc.querySelector('#p-falta').innerText = pes.falta || 0;
+    const elPFolga = doc.querySelector('#p-folga');
+    if (elPFolga) elPFolga.innerText = pes.folga || 0;
     doc.querySelector('#p-baixas').innerText = pes.baixas || 0;
     doc.querySelector('#p-visitantes').innerText = pes.visitantes || 0;
     doc.querySelector('#p-licenca').innerText = pes.licenca_convalescenca || 0;

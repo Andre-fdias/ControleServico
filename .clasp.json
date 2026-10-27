@@ -12,6 +12,25 @@
   "jsonExtensions": [
     ".json"
   ],
-  "filePushOrder": [],
+  "filePushOrder": [
+    "Config.js",
+    "Utils.js",
+    "Database.js",
+    "Audit.js",
+    "Authorization.js",
+    "Session.js",
+    "Users.js",
+    "Militares.js",
+    "Unidades.js",
+    "Prontidao.js",
+    "SecoesOperacionais.js",
+    "Conferencias.js",
+    "RegistroAtividades.js",
+    "Reports.js",
+    "Backup.js",
+    "Auth.js",
+    "SeedData.js",
+    "Code.js"
+  ],
   "skipSubdirectories": false
 }
