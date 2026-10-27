@@ -650,15 +650,18 @@ const App = (function() {
   // ========================================================================
   STATE.catalogoMateriais = [];
 
-  async function carregarCatalogoMateriais(itensMarcados = null) {
+  async function carregarCatalogoMateriais(itensMarcados = null, forceRefresh = false) {
     const tbody = document.getElementById('tbody-catalogo-materiais');
     if (!tbody) return;
 
     try {
-      let lista = STATE.initialData && STATE.initialData.catalogoMateriais ? STATE.initialData.catalogoMateriais : [];
-      if (!lista || lista.length === 0) {
+      let lista = (!forceRefresh && STATE.initialData && STATE.initialData.catalogoMateriais) ? STATE.initialData.catalogoMateriais : [];
+      if (!lista || lista.length === 0 || forceRefresh) {
         const res = await rpc('apiGetCatalogoMateriais', STATE.token);
-        if (res.success && res.catalogo) lista = res.catalogo;
+        if (res.success && res.catalogo) {
+          lista = res.catalogo;
+          if (STATE.initialData) STATE.initialData.catalogoMateriais = lista;
+        }
       }
       STATE.catalogoMateriais = lista;
 
@@ -728,7 +731,7 @@ const App = (function() {
         showToast('Material cadastrado no catálogo permanente com sucesso!', 'success');
         fecharModal('modal-catalogo-material');
         document.getElementById('form-modal-catalogo').reset();
-        await carregarCatalogoMateriais();
+        await carregarCatalogoMateriais(null, true);
       } else {
         showToast(res.message, 'error');
       }
