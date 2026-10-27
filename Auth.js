@@ -3,7 +3,7 @@
  * Auth.js - Autenticação segura, hashing com salt individual, política de senha provisória e sessões
  */
 
-const Auth = (function() {
+var Auth = (function() {
   const MAX_FAILED_ATTEMPTS = 5;
   const LOCKOUT_MINUTES = 15;
 
@@ -57,7 +57,7 @@ const Auth = (function() {
   /**
    * Provisiona ou atualiza militar como usuário do sistema (com senha inicial = RE)
    */
-  function provisionUserForMilitar(re, nomeCompleto, perfil = Config.ROLES.OPERACIONAL) {
+  function provisionUserForMilitar(re, nomeCompleto, perfil = 'operacional') {
     const cleanRe = Utils.normalizeRE(re);
     if (!cleanRe) throw new Error('RE inválido para criação de usuário.');
 

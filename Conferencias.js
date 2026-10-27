@@ -4,7 +4,7 @@
  * (Cmt que sai, Cmt que entra e Cmt do PB)
  */
 
-const Conferencias = (function() {
+var Conferencias = (function() {
   /**
    * Obtém as conferências de um registro
    */

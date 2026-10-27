@@ -3,7 +3,7 @@
  * Unidades.js - Gestão e relacionamentos de Grupamentos (1º ao 25º GB), SGBs (1º ao 6º) e Postos de Bombeiros (PB)
  */
 
-const Unidades = (function() {
+var Unidades = (function() {
   const DEFAULT_SGB_OPTIONS = [
     '1º SGB',
     '2º SGB',

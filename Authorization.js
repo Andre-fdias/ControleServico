@@ -3,7 +3,7 @@
  * Authorization.js - Controle de acesso baseado em papéis (RBAC)
  */
 
-const Authorization = (function() {
+var Authorization = (function() {
   const PERMISSIONS = {
     CONSULTAR_REGISTRO: ['operacional', 'admin'],
     CRIAR_REGISTRO: ['operacional', 'admin'],

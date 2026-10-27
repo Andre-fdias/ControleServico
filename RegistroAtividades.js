@@ -3,7 +3,7 @@
  * RegistroAtividades.js - Módulo central de criação, edição, consulta e ciclo de vida do livro diário
  */
 
-const RegistroAtividades = (function() {
+var RegistroAtividades = (function() {
   /**
    * Gera o próximo número sequencial oficial do registro (ex: LRA-2026-0001)
    */

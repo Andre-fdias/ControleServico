@@ -3,7 +3,7 @@
  * SecoesOperacionais.js - Gerenciamento e persistência das 12 seções do formulário oficial
  */
 
-const SecoesOperacionais = (function() {
+var SecoesOperacionais = (function() {
   /**
    * Salva a Seção 1 - Novidade de Pessoal com Autossoma via Complementos
    */

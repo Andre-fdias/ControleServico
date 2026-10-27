@@ -3,7 +3,7 @@
  * Backup.js - Procedimentos de cópia de segurança, exportação e integridade dos dados
  */
 
-const Backup = (function() {
+var Backup = (function() {
   /**
    * Exporta os dados completos de todas as abas do sistema em formato JSON estruturado
    */

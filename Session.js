@@ -3,8 +3,8 @@
  * Session.js - Gerenciamento de sessões seguras no servidor
  */
 
-const Session = (function() {
-  const SESSION_TTL_SECONDS = 28800; // 8 horas
+var Session = (function() {
+  const SESSION_TTL_SECONDS = 21600; // 6 horas (limite máximo permitido pelo CacheService do Google Apps Script)
   const _memorySessions = {}; // Fallback em memória e para testes locais
 
   /**

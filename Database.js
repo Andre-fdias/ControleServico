@@ -4,7 +4,7 @@
  * Leitura e gravação em lote, LockService para concorrência e inicialização idempotente de esquema.
  */
 
-const Database = (function() {
+var Database = (function() {
   let _spreadsheetOverride = null;
 
   function getSpreadsheet() {

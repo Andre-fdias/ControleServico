@@ -147,9 +147,10 @@ function _requireSession(token) {
 
 function apiLogin(username, password) {
   try {
-    return Auth.login(username, password);
+    const res = Auth.login(username, password);
+    return JSON.stringify(res);
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 

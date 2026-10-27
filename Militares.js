@@ -3,7 +3,7 @@
  * Militares.js - Gestão e consulta do efetivo de bombeiros militares
  */
 
-const Militares = (function() {
+var Militares = (function() {
   /**
    * Busca militar por RE exato (com ou sem dígito)
    */

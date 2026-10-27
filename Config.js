@@ -3,7 +3,7 @@
  * Config.js - Configurações centrais, esquemas das tabelas e constantes operacionais
  */
 
-const Config = (function() {
+var Config = (function() {
   const SPREADSHEET_ID = '1JtIUA2hpvs2I9BVJ6yqHAi5Qzozo0sYkbRNS757EInQ';
   const TIMEZONE = 'America/Sao_Paulo';
   const DEFAULT_HORA_INICIO = '07:30';

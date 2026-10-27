@@ -3,7 +3,7 @@
  * Utils.js - Funções utilitárias de validação, formatação e proteção de integridade
  */
 
-const Utils = (function() {
+var Utils = (function() {
   /**
    * Gera um identificador único universal (UUID v4)
    */

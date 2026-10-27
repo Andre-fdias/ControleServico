@@ -3,7 +3,7 @@
  * SeedData.js - Carga inicial de militares e unidades operacionais (LGPD-compliant)
  */
 
-const SeedData = (function() {
+var SeedData = (function() {
   const MILITARES_SEEDS = [
     // Prontidão Verde (Exemplos PMESP)
     { re: '108154', digito: '3', nome_completo: 'André Fonseca Dias', nome_guerra: 'A. Dias', graduacao: '1º Sgt PM', unidade_ref: '2º SGB', ativo: 'SIM' },

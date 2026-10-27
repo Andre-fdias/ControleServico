@@ -3,7 +3,7 @@
  * Prontidao.js - Cálculo matemático rigoroso do ciclo de prontidões e período de 24 horas
  */
 
-const Prontidao = (function() {
+var Prontidao = (function() {
   /**
    * Converte uma string 'YYYY-MM-DD' em objeto Date no fuso de São Paulo (UTC meia-noite segura)
    */

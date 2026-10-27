@@ -3,7 +3,7 @@
  * Users.js - Gestão administrativa de usuários, reset de senhas e desbloqueio
  */
 
-const Users = (function() {
+var Users = (function() {
   /**
    * Lista todos os usuários sem expor hashes de senha ou salts
    */

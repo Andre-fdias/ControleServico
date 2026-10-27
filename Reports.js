@@ -3,7 +3,7 @@
  * Reports.js - Indicadores e métricas operacionais para o Dashboard
  */
 
-const Reports = (function() {
+var Reports = (function() {
   /**
    * Calcula métricas em tempo real para o Dashboard operacional
    */

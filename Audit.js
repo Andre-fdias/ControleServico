@@ -3,7 +3,7 @@
  * Audit.js - Trilha de auditoria e segurança operacional
  */
 
-const Audit = (function() {
+var Audit = (function() {
   /**
    * Grava um registro de auditoria na planilha
    */
