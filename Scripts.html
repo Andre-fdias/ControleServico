@@ -154,24 +154,33 @@ const App = (function() {
    * Inicialização da Aplicação
    */
   async function init() {
-    // Verifica se há token salvo no sessionStorage
-    const savedToken = sessionStorage.getItem('cbm_session_token');
-    const savedUserJson = sessionStorage.getItem('cbm_session_user');
+    let savedToken = null;
+    let savedUserJson = null;
+    try {
+      savedToken = sessionStorage.getItem('cbm_session_token');
+      savedUserJson = sessionStorage.getItem('cbm_session_user');
+    } catch (e) {}
 
     if (savedToken && savedUserJson) {
       try {
         STATE.token = savedToken;
         STATE.user = JSON.parse(savedUserJson);
-        await carregarDadosIniciais();
-        aplicarSessaoAutenticada();
-        return;
-      } catch (e) {
-        sessionStorage.clear();
-      }
+        const res = await rpc('apiGetInitialData', STATE.token);
+        if (res && res.success) {
+          STATE.initialData = res;
+          popularSelectsGrupamentoEPosto(res);
+          aplicarSessaoAutenticada();
+          return;
+        }
+      } catch (e) {}
+      try { sessionStorage.clear(); } catch (e) {}
+      STATE.token = null;
+      STATE.user = null;
     }
 
     // Caso não autenticado, garante tela de login visível
-    document.getElementById('login-screen').style.display = 'flex';
+    const loginScreen = document.getElementById('login-screen');
+    if (loginScreen) loginScreen.style.display = 'flex';
   }
 
   /**
@@ -201,7 +210,7 @@ const App = (function() {
       const res = await rpc('apiLogin', username, password);
 
       if (!res || !res.success) {
-        errorBox.innerText = (res && res.message) || 'Falha de autenticação.';
+        errorBox.innerText = (res && res.message) ? res.message : 'Falha de autenticação. Verifique suas credenciais.';
         errorBox.style.display = 'block';
         submitBtn.disabled = false;
         submitBtn.innerText = 'Entrar no Sistema';
@@ -211,8 +220,10 @@ const App = (function() {
       STATE.token = res.token;
       STATE.user = res.user;
 
-      sessionStorage.setItem('cbm_session_token', STATE.token);
-      sessionStorage.setItem('cbm_session_user', JSON.stringify(STATE.user));
+      try {
+        sessionStorage.setItem('cbm_session_token', STATE.token);
+        sessionStorage.setItem('cbm_session_user', JSON.stringify(STATE.user));
+      } catch (e) {}
 
       await carregarDadosIniciais();
       aplicarSessaoAutenticada();
@@ -240,7 +251,7 @@ const App = (function() {
       }
     } catch (e) {}
 
-    sessionStorage.clear();
+    try { sessionStorage.clear(); } catch (e) {}
     STATE.token = null;
     STATE.user = null;
     document.getElementById('login-screen').style.display = 'flex';

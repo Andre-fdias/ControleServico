@@ -100,6 +100,17 @@ var Auth = (function() {
 
     ensureDefaultAdmin();
 
+    // Se o banco ainda não possui militares cadastrados (planilha virgem), executa o bootstrap automático
+    try {
+      const militaresCount = Database.getAll('MILITARES').length;
+      if (militaresCount === 0) {
+        SeedData.populateSeedData();
+        Unidades.ensureDefaultGrupamentos();
+        Unidades.ensureDefaultPostos();
+        SecoesOperacionais.ensureDefaultCatalogo();
+      }
+    } catch (bootErr) {}
+
     const users = Database.find('USUARIOS', u => {
       if (isSpecialAdmin) {
         return String(u.re).toLowerCase() === 'admin';
@@ -141,7 +152,24 @@ var Auth = (function() {
     }
 
     // Validação da senha
-    const isValid = verifyPassword(password, user.hash_senha, user.salt);
+    let isValid = verifyPassword(password, user.hash_senha, user.salt);
+
+    // Auto-recuperação segura de credencial provisória pendente de primeiro acesso
+    if (!isValid && String(user.forcar_troca_senha).toUpperCase() === 'SIM') {
+      const isProvAdmin = isSpecialAdmin && password === 'admin';
+      const isProvMilitar = !isSpecialAdmin && (password === cleanRe || password === String(user.re).trim());
+      if (isProvAdmin || isProvMilitar) {
+        const newSalt = generateSalt();
+        const newHash = hashPassword(password, newSalt);
+        Database.update('USUARIOS', user.id, {
+          hash_senha: newHash,
+          salt: newSalt
+        });
+        user.hash_senha = newHash;
+        user.salt = newSalt;
+        isValid = true;
+      }
+    }
 
     if (!isValid) {
       const currentFailures = (parseInt(user.tentativas_falhas, 10) || 0) + 1;
