@@ -13,7 +13,7 @@ echo.
 echo ========================================================
 echo ==> 2. Publicando nova versao (clasp deploy)...
 echo ========================================================
-cmd.exe /c npx.cmd @google/clasp deploy -d AutoDeploy
+cmd.exe /c npx.cmd @google/clasp deploy -i AKfycbxfe4LMj7D2R2sXP6FddN993eOCtGWVsVWe2YOjBQkEc-aGWhKeL5tzjavPWPM6GHiH -d AutoDeploy
 if %ERRORLEVEL% NEQ 0 (
     echo [ERRO] Falha no deploy.
     pause
