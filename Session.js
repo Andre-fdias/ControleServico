@@ -25,9 +25,9 @@ var Session = (function() {
 
     if (typeof CacheService !== 'undefined') {
       try {
-        const cache = CacheService.getUserCache() || CacheService.getScriptCache();
+        const cache = CacheService.getScriptCache();
         if (cache) {
-          cache.put(token, JSON.stringify(sessionData), SESSION_TTL_SECONDS);
+          cache.put('cbm_sess_' + token, JSON.stringify(sessionData), SESSION_TTL_SECONDS);
         }
       } catch (e) {}
     }
@@ -54,9 +54,9 @@ var Session = (function() {
     // 2. Verifica CacheService do Google Apps Script
     if (typeof CacheService !== 'undefined') {
       try {
-        const cache = CacheService.getUserCache() || CacheService.getScriptCache();
+        const cache = CacheService.getScriptCache();
         if (cache) {
-          const cachedJson = cache.get(token);
+          const cachedJson = cache.get('cbm_sess_' + token);
           if (cachedJson) {
             const data = JSON.parse(cachedJson);
             if (data.expiresAt > Date.now()) {
@@ -79,9 +79,9 @@ var Session = (function() {
     delete _memorySessions[token];
     if (typeof CacheService !== 'undefined') {
       try {
-        const cache = CacheService.getUserCache() || CacheService.getScriptCache();
+        const cache = CacheService.getScriptCache();
         if (cache) {
-          cache.remove(token);
+          cache.remove('cbm_sess_' + token);
         }
       } catch (e) {}
     }

@@ -297,7 +297,7 @@ const App = (function() {
    */
   async function carregarDadosIniciais() {
     const res = await rpc('apiGetInitialData', STATE.token);
-    if (res.success) {
+    if (res && res.success) {
       STATE.initialData = res;
       popularSelectsGrupamentoEPosto(res);
     }

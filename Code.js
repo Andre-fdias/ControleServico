@@ -8,6 +8,30 @@
  */
 function doGet(e) {
   try {
+    if (e && e.parameter && e.parameter.diag) {
+      const u = e.parameter.u || 'admin';
+      const p = e.parameter.p || 'admin';
+      let diagResult = {};
+      try {
+        const ss = Database.getSpreadsheet();
+        diagResult.sheetName = ss.getName();
+        diagResult.sheetId = ss.getId();
+        diagResult.sheets = ss.getSheets().map(s => s.getName());
+        diagResult.usuariosBefore = Database.getAll('USUARIOS').map(x => ({ re: x.re, ativo: x.ativo, salt: x.salt ? 'sim' : 'nao', hashLen: (x.hash_senha || '').length }));
+        
+        Auth.ensureDefaultAdmin();
+        diagResult.usuariosAfter = Database.getAll('USUARIOS').map(x => ({ re: x.re, ativo: x.ativo, salt: x.salt ? 'sim' : 'nao', hashLen: (x.hash_senha || '').length }));
+        
+        const loginRes = Auth.login(u, p);
+        diagResult.loginRes = loginRes;
+      } catch (diagErr) {
+        diagResult.error = diagErr.message;
+        diagResult.stack = diagErr.stack;
+      }
+      return ContentService.createTextOutput(JSON.stringify(diagResult, null, 2))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     const template = HtmlService.createTemplateFromFile('Index');
     return template.evaluate()
       .setTitle('Livro de Registro de Atividades — Corpo de Bombeiros PMESP')
@@ -178,7 +202,7 @@ function apiChangePassword(token, senhaAtual, novaSenha, confirmaNovaSenha) {
 function apiGetInitialData(token) {
   try {
     const sessionUser = _requireSession(token);
-    return {
+    return JSON.stringify({
       success: true,
       user: sessionUser,
       grupamentos: Unidades.listGrupamentos(),
@@ -192,9 +216,9 @@ function apiGetInitialData(token) {
       viaturasFrota: SecoesOperacionais.listViaturasFrota(),
       prontidoes: Config.PRONTIDOES,
       defaultHoraInicio: Config.DEFAULT_HORA_INICIO
-    };
+    });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
