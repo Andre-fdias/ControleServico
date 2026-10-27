@@ -8,27 +8,21 @@
  */
 function doGet(e) {
   try {
-    if (e && e.parameter && e.parameter.diag) {
-      const u = e.parameter.u || 'admin';
-      const p = e.parameter.p || 'admin';
-      let diagResult = {};
+    if (e && e.parameter && e.parameter.unblock) {
+      let count = 0;
       try {
-        const ss = Database.getSpreadsheet();
-        diagResult.sheetName = ss.getName();
-        diagResult.sheetId = ss.getId();
-        diagResult.sheets = ss.getSheets().map(s => s.getName());
-        diagResult.usuariosBefore = Database.getAll('USUARIOS').map(x => ({ re: x.re, ativo: x.ativo, salt: x.salt ? 'sim' : 'nao', hashLen: (x.hash_senha || '').length }));
-        
-        Auth.ensureDefaultAdmin();
-        diagResult.usuariosAfter = Database.getAll('USUARIOS').map(x => ({ re: x.re, ativo: x.ativo, salt: x.salt ? 'sim' : 'nao', hashLen: (x.hash_senha || '').length }));
-        
-        const loginRes = Auth.login(u, p);
-        diagResult.loginRes = loginRes;
-      } catch (diagErr) {
-        diagResult.error = diagErr.message;
-        diagResult.stack = diagErr.stack;
-      }
-      return ContentService.createTextOutput(JSON.stringify(diagResult, null, 2))
+        const users = Database.getAll('USUARIOS');
+        users.forEach(u => {
+          if (u.bloqueado_ate || parseInt(u.tentativas_falhas, 10) > 0) {
+            Database.update('USUARIOS', u.id, {
+              tentativas_falhas: 0,
+              bloqueado_ate: ''
+            });
+            count++;
+          }
+        });
+      } catch (err) {}
+      return ContentService.createTextOutput(JSON.stringify({ success: true, unblocked: count }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
