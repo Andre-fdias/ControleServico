@@ -132,7 +132,7 @@
         <span class="accordion-arrow">▼</span>
       </button>
       <div class="section-body">
-        <!-- 7 Contadores em Autossoma -->
+        <!-- 8 Contadores em Autossoma -->
         <div class="pessoal-counters-grid">
           <div class="counter-card" id="card-cnt-falta">
             <span class="counter-label">Falta</span>
@@ -141,6 +141,10 @@
           <div class="counter-card" id="card-cnt-folga">
             <span class="counter-label">Folga</span>
             <span class="counter-val" id="sec1-folga-val">0</span>
+          </div>
+          <div class="counter-card" id="card-cnt-troca">
+            <span class="counter-label">Troca</span>
+            <span class="counter-val" id="sec1-troca-val">0</span>
           </div>
           <div class="counter-card" id="card-cnt-baixas">
             <span class="counter-label">Baixas</span>
@@ -169,12 +173,13 @@
           <div style="font-size: 0.9rem; font-weight: 700; color: #fff; margin-bottom: 0.75rem;">
             ➕ Lançar Complemento de Pessoal:
           </div>
-          <div class="form-row-grid">
-            <div class="form-group">
+          <div class="form-row-grid" style="margin-bottom: 1rem;">
+            <div class="form-group" style="max-width: 320px;">
               <label class="form-label" for="comp-categoria">Categoria:<span class="required">*</span></label>
-              <select class="form-select" id="comp-categoria">
+              <select class="form-select" id="comp-categoria" onchange="App.onCategoriaComplementoChange()">
                 <option value="Falta">Falta</option>
                 <option value="Folga">Folga</option>
+                <option value="Troca">Troca de Serviço</option>
                 <option value="Baixas">Baixas</option>
                 <option value="Visitantes">Visitantes</option>
                 <option value="Licença / Convalescença">Licença / Convalescença</option>
@@ -182,53 +187,200 @@
                 <option value="Estagiários">Estagiários</option>
               </select>
             </div>
-            <div class="form-group" style="position: relative;">
-              <label class="form-label" for="comp-re">Pesquisar Militar por RE:<span class="required">*</span></label>
-              <div class="input-with-icon">
-                <span class="input-icon">🔍</span>
-                <input type="text" class="form-input" id="comp-re" placeholder="Digite o RE para buscar..." oninput="App.buscarMilitarComplemento(this.value)">
-              </div>
-              <div id="autocomplete-comp-results" class="autocomplete-results"></div>
-            </div>
           </div>
 
-          <div class="form-row-grid">
-            <div class="form-group">
-              <label class="form-label" for="comp-graduacao">Posto / Graduação (Hierarquia PMESP):<span class="required">*</span></label>
-              <select class="form-select" id="comp-graduacao">
-                <optgroup label="1. Oficiais (Maior para o menor)">
-                  <option value="CEL PM">CEL PM — Coronel PM</option>
-                  <option value="TEN CEL PM">TEN CEL PM — Tenente-Coronel PM</option>
-                  <option value="MAJ PM">MAJ PM — Major PM</option>
-                  <option value="CAP PM">CAP PM — Capitão PM</option>
-                  <option value="1º TEN PM">1º TEN PM — 1º Tenente PM</option>
-                  <option value="2º TEN PM">2º TEN PM — 2º Tenente PM</option>
-                  <option value="ASP OF PM">ASP OF PM — Aspirante a Oficial PM</option>
-                </optgroup>
-                <optgroup label="2. Praças (Maior para o menor)">
-                  <option value="SUBTEN PM">SUBTEN PM — Subtenente PM</option>
-                  <option value="1º SGT PM">1º SGT PM — 1º Sargento PM</option>
-                  <option value="2º SGT PM">2º SGT PM — 2º Sargento PM</option>
-                  <option value="3º SGT PM">3º SGT PM — 3º Sargento PM</option>
-                  <option value="CB PM">CB PM — Cabo PM</option>
-                  <option value="SD PM" selected>SD PM — Soldado PM</option>
-                  <option value="AL SD PM">AL SD PM — Aluno Soldado PM</option>
-                </optgroup>
-              </select>
+          <!-- MODO 1: Complemento Padrão (1 militar) -->
+          <div id="comp-fields-padrao">
+            <div class="form-row-grid">
+              <div class="form-group" style="position: relative;">
+                <label class="form-label" for="comp-re">Pesquisar Militar por RE:<span class="required">*</span></label>
+                <div class="input-with-icon">
+                  <span class="input-icon">🔍</span>
+                  <input type="text" class="form-input" id="comp-re" placeholder="Digite o RE para buscar..." oninput="App.buscarMilitarComplemento(this.value)">
+                </div>
+                <div id="autocomplete-comp-results" class="autocomplete-results"></div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="comp-graduacao">Posto / Graduação (Hierarquia PMESP):<span class="required">*</span></label>
+                <select class="form-select" id="comp-graduacao">
+                  <optgroup label="1. Oficiais (Maior para o menor)">
+                    <option value="CEL PM">CEL PM — Coronel PM</option>
+                    <option value="TEN CEL PM">TEN CEL PM — Tenente-Coronel PM</option>
+                    <option value="MAJ PM">MAJ PM — Major PM</option>
+                    <option value="CAP PM">CAP PM — Capitão PM</option>
+                    <option value="1º TEN PM">1º TEN PM — 1º Tenente PM</option>
+                    <option value="2º TEN PM">2º TEN PM — 2º Tenente PM</option>
+                    <option value="ASP OF PM">ASP OF PM — Aspirante a Oficial PM</option>
+                  </optgroup>
+                  <optgroup label="2. Praças (Maior para o menor)">
+                    <option value="SUBTEN PM">SUBTEN PM — Subtenente PM</option>
+                    <option value="1º SGT PM">1º SGT PM — 1º Sargento PM</option>
+                    <option value="2º SGT PM">2º SGT PM — 2º Sargento PM</option>
+                    <option value="3º SGT PM">3º SGT PM — 3º Sargento PM</option>
+                    <option value="CB PM">CB PM — Cabo PM</option>
+                    <option value="SD PM" selected>SD PM — Soldado PM</option>
+                    <option value="AL SD PM">AL SD PM — Aluno Soldado PM</option>
+                  </optgroup>
+                </select>
+              </div>
             </div>
+
             <div class="form-group">
               <label class="form-label" for="comp-nome">Nome Completo:<span class="required">*</span></label>
               <input type="text" class="form-input" id="comp-nome" placeholder="Preenchido via RE ou editável">
             </div>
+
+            <div class="form-group">
+              <label class="form-label" for="comp-motivo">Motivo / Justificativa / Observação:</label>
+              <div style="display: flex; gap: 0.5rem;">
+                <input type="text" class="form-input" id="comp-motivo" placeholder="Ex: Dispensado pelo médico; Licença-prêmio; Convalescença...">
+                <button type="button" class="btn btn-primary" onclick="App.incluirComplemento()">
+                  ➕ Incluir
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label" for="comp-motivo">Motivo / Justificativa / Observação:</label>
-            <div style="display: flex; gap: 0.5rem;">
-              <input type="text" class="form-input" id="comp-motivo" placeholder="Ex: Dispensado pelo médico; Licença-prêmio; Convalescença...">
-              <button type="button" class="btn btn-primary" onclick="App.incluirComplemento()">
-                ➕ Incluir
-              </button>
+          <!-- MODO 2: Troca de Serviço (2 militares: SAI e ENTRA + Período) -->
+          <div id="comp-fields-troca" style="display: none;">
+            <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.85rem; padding: 0.5rem 0.75rem; background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; border-radius: 4px;">
+              ℹ️ <strong>Troca de Serviço:</strong> Cadastre o militar substituído (quem sai da prontidão da escala) e o substituto (quem entra para cumprir o serviço), indicando suas prontidões e o período.
+            </div>
+
+            <div class="troca-dupla-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+              <!-- BLOCO 1: QUEM SAI -->
+              <div class="troca-box-sai" style="border: 1px solid rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.05); border-radius: var(--radius-sm); padding: 0.85rem;">
+                <div style="font-weight: 700; color: #f87171; font-size: 0.85rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.35rem;">
+                  🔴 Militar que SAI (Escalado de folga)
+                </div>
+                
+                <div class="form-group" style="position: relative; margin-bottom: 0.65rem;">
+                  <label class="form-label" for="comp-troca-sai-re" style="font-size: 0.78rem;">Buscar por RE:<span class="required">*</span></label>
+                  <div class="input-with-icon">
+                    <span class="input-icon">🔍</span>
+                    <input type="text" class="form-input" id="comp-troca-sai-re" placeholder="Digite RE..." oninput="App.buscarMilitarTrocaSai(this.value)">
+                  </div>
+                  <div id="autocomplete-troca-sai-results" class="autocomplete-results"></div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.65rem;">
+                  <label class="form-label" for="comp-troca-sai-graduacao" style="font-size: 0.78rem;">Posto / Graduação:<span class="required">*</span></label>
+                  <select class="form-select" id="comp-troca-sai-graduacao">
+                    <optgroup label="1. Oficiais">
+                      <option value="CEL PM">CEL PM — Coronel PM</option>
+                      <option value="TEN CEL PM">TEN CEL PM — Tenente-Coronel PM</option>
+                      <option value="MAJ PM">MAJ PM — Major PM</option>
+                      <option value="CAP PM">CAP PM — Capitão PM</option>
+                      <option value="1º TEN PM">1º TEN PM — 1º Tenente PM</option>
+                      <option value="2º TEN PM">2º TEN PM — 2º Tenente PM</option>
+                      <option value="ASP OF PM">ASP OF PM — Aspirante a Oficial PM</option>
+                    </optgroup>
+                    <optgroup label="2. Praças">
+                      <option value="SUBTEN PM">SUBTEN PM — Subtenente PM</option>
+                      <option value="1º SGT PM">1º SGT PM — 1º Sargento PM</option>
+                      <option value="2º SGT PM">2º SGT PM — 2º Sargento PM</option>
+                      <option value="3º SGT PM">3º SGT PM — 3º Sargento PM</option>
+                      <option value="CB PM">CB PM — Cabo PM</option>
+                      <option value="SD PM" selected>SD PM — Soldado PM</option>
+                      <option value="AL SD PM">AL SD PM — Aluno Soldado PM</option>
+                    </optgroup>
+                  </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.65rem;">
+                  <label class="form-label" for="comp-troca-sai-nome" style="font-size: 0.78rem;">Nome Completo:<span class="required">*</span></label>
+                  <input type="text" class="form-input" id="comp-troca-sai-nome" placeholder="Preenchido via RE ou digitado">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" for="comp-troca-sai-prontidao" style="font-size: 0.78rem;">Prontidão de Origem:<span class="required">*</span></label>
+                  <select class="form-select" id="comp-troca-sai-prontidao">
+                    <option value="Verde" selected>Verde</option>
+                    <option value="Amarela">Amarela</option>
+                    <option value="Azul">Azul</option>
+                    <option value="Branca">Branca (Administrativo)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- BLOCO 2: QUEM ENTRA -->
+              <div class="troca-box-entra" style="border: 1px solid rgba(16, 185, 129, 0.35); background: rgba(16, 185, 129, 0.05); border-radius: var(--radius-sm); padding: 0.85rem;">
+                <div style="font-weight: 700; color: #34d399; font-size: 0.85rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.35rem;">
+                  🟢 Militar que ENTRA (Substituto de serviço)
+                </div>
+
+                <div class="form-group" style="position: relative; margin-bottom: 0.65rem;">
+                  <label class="form-label" for="comp-troca-entra-re" style="font-size: 0.78rem;">Buscar por RE:<span class="required">*</span></label>
+                  <div class="input-with-icon">
+                    <span class="input-icon">🔍</span>
+                    <input type="text" class="form-input" id="comp-troca-entra-re" placeholder="Digite RE..." oninput="App.buscarMilitarTrocaEntra(this.value)">
+                  </div>
+                  <div id="autocomplete-troca-entra-results" class="autocomplete-results"></div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.65rem;">
+                  <label class="form-label" for="comp-troca-entra-graduacao" style="font-size: 0.78rem;">Posto / Graduação:<span class="required">*</span></label>
+                  <select class="form-select" id="comp-troca-entra-graduacao">
+                    <optgroup label="1. Oficiais">
+                      <option value="CEL PM">CEL PM — Coronel PM</option>
+                      <option value="TEN CEL PM">TEN CEL PM — Tenente-Coronel PM</option>
+                      <option value="MAJ PM">MAJ PM — Major PM</option>
+                      <option value="CAP PM">CAP PM — Capitão PM</option>
+                      <option value="1º TEN PM">1º TEN PM — 1º Tenente PM</option>
+                      <option value="2º TEN PM">2º TEN PM — 2º Tenente PM</option>
+                      <option value="ASP OF PM">ASP OF PM — Aspirante a Oficial PM</option>
+                    </optgroup>
+                    <optgroup label="2. Praças">
+                      <option value="SUBTEN PM">SUBTEN PM — Subtenente PM</option>
+                      <option value="1º SGT PM">1º SGT PM — 1º Sargento PM</option>
+                      <option value="2º SGT PM">2º SGT PM — 2º Sargento PM</option>
+                      <option value="3º SGT PM">3º SGT PM — 3º Sargento PM</option>
+                      <option value="CB PM">CB PM — Cabo PM</option>
+                      <option value="SD PM" selected>SD PM — Soldado PM</option>
+                      <option value="AL SD PM">AL SD PM — Aluno Soldado PM</option>
+                    </optgroup>
+                  </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.65rem;">
+                  <label class="form-label" for="comp-troca-entra-nome" style="font-size: 0.78rem;">Nome Completo:<span class="required">*</span></label>
+                  <input type="text" class="form-input" id="comp-troca-entra-nome" placeholder="Preenchido via RE ou digitado">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" for="comp-troca-entra-prontidao" style="font-size: 0.78rem;">Prontidão de Origem:<span class="required">*</span></label>
+                  <select class="form-select" id="comp-troca-entra-prontidao">
+                    <option value="Azul" selected>Azul</option>
+                    <option value="Verde">Verde</option>
+                    <option value="Amarela">Amarela</option>
+                    <option value="Branca">Branca (Administrativo)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- PERÍODO, MOTIVO E BOTÃO INCLUIR -->
+            <div class="form-row-grid" style="align-items: flex-end;">
+              <div class="form-group" style="min-width: 180px;">
+                <label class="form-label" for="comp-troca-periodo">Período:<span class="required">*</span></label>
+                <select class="form-select" id="comp-troca-periodo">
+                  <option value="24 Horas" selected>24 Horas (Integral)</option>
+                  <option value="12 Horas (Diurno)">12 Horas (Diurno - 07h às 19h)</option>
+                  <option value="12 Horas (Noturno)">12 Horas (Noturno - 19h às 07h)</option>
+                  <option value="12 Horas">12 Horas</option>
+                </select>
+              </div>
+
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label" for="comp-troca-motivo">Motivo / Justificativa / Observação:</label>
+                <input type="text" class="form-input" id="comp-troca-motivo" placeholder="Ex: Troca voluntária com anuência da chefia...">
+              </div>
+
+              <div class="form-group" style="margin-bottom: 0;">
+                <button type="button" class="btn btn-primary" onclick="App.incluirTrocaServico()" style="white-space: nowrap; height: 38px;">
+                  🔄 Incluir Troca
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -15,6 +15,7 @@ var SecoesOperacionais = (function() {
     // Calcula a autossoma por categoria a partir dos complementos informados
     let faltaCount = 0;
     let folgaCount = 0;
+    let trocaCount = 0;
     let baixasCount = 0;
     let visitantesCount = 0;
     let licencaCount = 0;
@@ -26,6 +27,7 @@ var SecoesOperacionais = (function() {
         const cat = String(item.categoria || '').trim().toLowerCase();
         if (cat === 'falta') faltaCount++;
         else if (cat === 'folga') folgaCount++;
+        else if (cat === 'troca' || cat.includes('troca')) trocaCount++;
         else if (cat === 'baixas' || cat === 'baixa') baixasCount++;
         else if (cat === 'visitantes' || cat === 'visitante') visitantesCount++;
         else if (cat.includes('licença') || cat.includes('convalescença') || cat.includes('licenca')) licencaCount++;
@@ -36,6 +38,7 @@ var SecoesOperacionais = (function() {
       // Fallback para valores diretos caso não haja complementos detalhados
       faltaCount = Utils.parseNonNegativeInt(data.falta, 0);
       folgaCount = Utils.parseNonNegativeInt(data.folga, 0);
+      trocaCount = Utils.parseNonNegativeInt(data.troca, 0);
       baixasCount = Utils.parseNonNegativeInt(data.baixas, 0);
       visitantesCount = Utils.parseNonNegativeInt(data.visitantes, 0);
       licencaCount = Utils.parseNonNegativeInt(data.licenca_convalescenca, 0);
@@ -47,6 +50,7 @@ var SecoesOperacionais = (function() {
       registro_id: registroId,
       falta: faltaCount,
       folga: folgaCount,
+      troca: trocaCount,
       baixas: baixasCount,
       visitantes: visitantesCount,
       licenca_convalescenca: licencaCount,
@@ -69,6 +73,8 @@ var SecoesOperacionais = (function() {
     if (complementosList.length > 0) {
       const compBatch = complementosList.map(c => {
         const milRe = Utils.normalizeRE(c.militar_re || c.re || '');
+        const saiRe = Utils.normalizeRE(c.militar_sai_re || c.sai_re || '');
+        const entraRe = Utils.normalizeRE(c.militar_entra_re || c.entra_re || '');
         return {
           id: Utils.generateId('cpes'),
           registro_id: registroId,
@@ -77,6 +83,15 @@ var SecoesOperacionais = (function() {
           militar_graduacao: String(c.militar_graduacao || c.graduacao || '').trim(),
           militar_nome: String(c.militar_nome || c.nome_completo || c.nome || '').trim(),
           motivo: String(c.motivo || c.observacao || '').trim(),
+          militar_sai_re: saiRe,
+          militar_sai_graduacao: String(c.militar_sai_graduacao || c.sai_graduacao || '').trim(),
+          militar_sai_nome: String(c.militar_sai_nome || c.sai_nome || '').trim(),
+          militar_sai_prontidao: String(c.militar_sai_prontidao || c.sai_prontidao || '').trim(),
+          militar_entra_re: entraRe,
+          militar_entra_graduacao: String(c.militar_entra_graduacao || c.entra_graduacao || '').trim(),
+          militar_entra_nome: String(c.militar_entra_nome || c.entra_nome || '').trim(),
+          militar_entra_prontidao: String(c.militar_entra_prontidao || c.entra_prontidao || '').trim(),
+          periodo_horas: String(c.periodo_horas || c.periodo || '').trim(),
           atualizado_em: Utils.nowTimestamp()
         };
       });
@@ -93,21 +108,42 @@ var SecoesOperacionais = (function() {
     const list = Database.find('NOVIDADES_PESSOAL', p => String(p.registro_id) === String(registroId));
     const rawComplementos = Database.find('COMPLEMENTOS_PESSOAL', c => String(c.registro_id) === String(registroId));
 
-    const complementos = rawComplementos.map(c => ({
-      id: c.id,
-      categoria: c.categoria,
-      militar_re: c.militar_re,
-      militar_graduacao: c.militar_graduacao,
-      militar_nome: c.militar_nome,
-      motivo: c.motivo,
-      display_formatado: Utils.formatMilitarDisplay(c.militar_graduacao, c.militar_re, '', c.militar_nome)
-    }));
+    const complementos = rawComplementos.map(c => {
+      let displayFormatado = Utils.formatMilitarDisplay(c.militar_graduacao, c.militar_re, '', c.militar_nome);
+      const catLower = String(c.categoria || '').toLowerCase();
+      if (catLower.includes('troca')) {
+        const saiGrad = c.militar_sai_graduacao ? (c.militar_sai_graduacao.split('—')[0].trim() || c.militar_sai_graduacao) : '';
+        const entraGrad = c.militar_entra_graduacao ? (c.militar_entra_graduacao.split('—')[0].trim() || c.militar_entra_graduacao) : '';
+        const saiDisp = [saiGrad, c.militar_sai_re ? `RE ${c.militar_sai_re}` : '', c.militar_sai_nome].filter(Boolean).join(' ');
+        const entraDisp = [entraGrad, c.militar_entra_re ? `RE ${c.militar_entra_re}` : '', c.militar_entra_nome].filter(Boolean).join(' ');
+        displayFormatado = `SAI: ${saiDisp || '-'} [${c.militar_sai_prontidao || 'Sem prontidão'}] ➔ ENTRA: ${entraDisp || '-'} [${c.militar_entra_prontidao || 'Sem prontidão'}] (${c.periodo_horas || '24 Horas'})`;
+      }
+      return {
+        id: c.id,
+        categoria: c.categoria,
+        militar_re: c.militar_re,
+        militar_graduacao: c.militar_graduacao,
+        militar_nome: c.militar_nome,
+        motivo: c.motivo,
+        militar_sai_re: c.militar_sai_re || '',
+        militar_sai_graduacao: c.militar_sai_graduacao || '',
+        militar_sai_nome: c.militar_sai_nome || '',
+        militar_sai_prontidao: c.militar_sai_prontidao || '',
+        militar_entra_re: c.militar_entra_re || '',
+        militar_entra_graduacao: c.militar_entra_graduacao || '',
+        militar_entra_nome: c.militar_entra_nome || '',
+        militar_entra_prontidao: c.militar_entra_prontidao || '',
+        periodo_horas: c.periodo_horas || '',
+        display_formatado: displayFormatado
+      };
+    });
 
     if (list && list.length > 0) {
       const p = list[0];
       return {
         falta: Utils.parseNonNegativeInt(p.falta, 0),
         folga: Utils.parseNonNegativeInt(p.folga, 0),
+        troca: Utils.parseNonNegativeInt(p.troca, 0),
         baixas: Utils.parseNonNegativeInt(p.baixas, 0),
         visitantes: Utils.parseNonNegativeInt(p.visitantes, 0),
         licenca_convalescenca: Utils.parseNonNegativeInt(p.licenca_convalescenca, 0),
@@ -121,6 +157,7 @@ var SecoesOperacionais = (function() {
     return {
       falta: 0,
       folga: 0,
+      troca: 0,
       baixas: 0,
       visitantes: 0,
       licenca_convalescenca: 0,

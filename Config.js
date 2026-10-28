@@ -88,6 +88,7 @@ var Config = (function() {
   const CATEGORIAS_PESSOAL = [
     'Falta',
     'Folga',
+    'Troca',
     'Baixas',
     'Visitantes',
     'Licença / Convalescença',
@@ -189,11 +190,20 @@ var Config = (function() {
     COMPLEMENTOS_PESSOAL: [
       'id',
       'registro_id',
-      'categoria', // Falta, Baixas, Visitantes, Licença / Convalescença, Restrição, Estagiários
+      'categoria', // Falta, Folga, Troca, Baixas, Visitantes, Licença / Convalescença, Restrição, Estagiários
       'militar_re',
       'militar_graduacao',
       'militar_nome',
       'motivo',
+      'militar_sai_re',
+      'militar_sai_graduacao',
+      'militar_sai_nome',
+      'militar_sai_prontidao',
+      'militar_entra_re',
+      'militar_entra_graduacao',
+      'militar_entra_nome',
+      'militar_entra_prontidao',
+      'periodo_horas',
       'atualizado_em'
     ],
     NOVIDADES_PESSOAL: [
@@ -201,6 +211,7 @@ var Config = (function() {
       'registro_id',
       'falta',
       'folga',
+      'troca',
       'baixas',
       'visitantes',
       'licenca_convalescenca',

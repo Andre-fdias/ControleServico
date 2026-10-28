@@ -528,6 +528,19 @@ const App = (function() {
   // ========================================================================
   STATE.complementosList = [];
 
+  function onCategoriaComplementoChange() {
+    const cat = document.getElementById('comp-categoria').value;
+    const boxPadrao = document.getElementById('comp-fields-padrao');
+    const boxTroca = document.getElementById('comp-fields-troca');
+    if (cat === 'Troca') {
+      if (boxPadrao) boxPadrao.style.display = 'none';
+      if (boxTroca) boxTroca.style.display = 'block';
+    } else {
+      if (boxPadrao) boxPadrao.style.display = 'block';
+      if (boxTroca) boxTroca.style.display = 'none';
+    }
+  }
+
   async function buscarMilitarComplemento(query) {
     const container = document.getElementById('autocomplete-comp-results');
     if (!query || query.trim().length < 2) {
@@ -555,6 +568,84 @@ const App = (function() {
               }
             }
             document.getElementById('comp-nome').value = m.nome_completo;
+            container.style.display = 'none';
+          };
+          container.appendChild(item);
+        });
+        container.style.display = 'block';
+      } else {
+        container.style.display = 'none';
+      }
+    } catch (e) {
+      container.style.display = 'none';
+    }
+  }
+
+  async function buscarMilitarTrocaSai(query) {
+    const container = document.getElementById('autocomplete-troca-sai-results');
+    if (!query || query.trim().length < 2) {
+      container.style.display = 'none';
+      return;
+    }
+
+    try {
+      const res = await rpc('apiSearchMilitares', query);
+      if (res.success && res.results.length > 0) {
+        container.innerHTML = '';
+        res.results.forEach(m => {
+          const item = document.createElement('div');
+          item.className = 'autocomplete-item';
+          item.innerText = m.display_formatado;
+          item.onclick = () => {
+            document.getElementById('comp-troca-sai-re').value = m.re;
+            const selGrad = document.getElementById('comp-troca-sai-graduacao');
+            for (let i = 0; i < selGrad.options.length; i++) {
+              if (selGrad.options[i].value.toUpperCase() === String(m.graduacao || '').trim().toUpperCase() ||
+                  selGrad.options[i].text.toUpperCase().includes(String(m.graduacao || '').trim().toUpperCase())) {
+                selGrad.selectedIndex = i;
+                break;
+              }
+            }
+            document.getElementById('comp-troca-sai-nome').value = m.nome_completo;
+            container.style.display = 'none';
+          };
+          container.appendChild(item);
+        });
+        container.style.display = 'block';
+      } else {
+        container.style.display = 'none';
+      }
+    } catch (e) {
+      container.style.display = 'none';
+    }
+  }
+
+  async function buscarMilitarTrocaEntra(query) {
+    const container = document.getElementById('autocomplete-troca-entra-results');
+    if (!query || query.trim().length < 2) {
+      container.style.display = 'none';
+      return;
+    }
+
+    try {
+      const res = await rpc('apiSearchMilitares', query);
+      if (res.success && res.results.length > 0) {
+        container.innerHTML = '';
+        res.results.forEach(m => {
+          const item = document.createElement('div');
+          item.className = 'autocomplete-item';
+          item.innerText = m.display_formatado;
+          item.onclick = () => {
+            document.getElementById('comp-troca-entra-re').value = m.re;
+            const selGrad = document.getElementById('comp-troca-entra-graduacao');
+            for (let i = 0; i < selGrad.options.length; i++) {
+              if (selGrad.options[i].value.toUpperCase() === String(m.graduacao || '').trim().toUpperCase() ||
+                  selGrad.options[i].text.toUpperCase().includes(String(m.graduacao || '').trim().toUpperCase())) {
+                selGrad.selectedIndex = i;
+                break;
+              }
+            }
+            document.getElementById('comp-troca-entra-nome').value = m.nome_completo;
             container.style.display = 'none';
           };
           container.appendChild(item);
@@ -603,6 +694,64 @@ const App = (function() {
     document.getElementById('comp-motivo').value = '';
   }
 
+  function incluirTrocaServico() {
+    const saiRe = document.getElementById('comp-troca-sai-re').value.trim();
+    const saiGrad = document.getElementById('comp-troca-sai-graduacao').value;
+    const saiNome = document.getElementById('comp-troca-sai-nome').value.trim();
+    const saiProntidao = document.getElementById('comp-troca-sai-prontidao').value;
+
+    const entraRe = document.getElementById('comp-troca-entra-re').value.trim();
+    const entraGrad = document.getElementById('comp-troca-entra-graduacao').value;
+    const entraNome = document.getElementById('comp-troca-entra-nome').value.trim();
+    const entraProntidao = document.getElementById('comp-troca-entra-prontidao').value;
+
+    const periodo = document.getElementById('comp-troca-periodo').value;
+    const motivo = document.getElementById('comp-troca-motivo').value.trim();
+
+    if (!saiRe || !saiNome) {
+      showToast('Informe o RE e Nome do militar que sai da escala.', 'error');
+      return;
+    }
+    if (!entraRe || !entraNome) {
+      showToast('Informe o RE e Nome do militar substituto que entra.', 'error');
+      return;
+    }
+
+    const saiGradShort = saiGrad.split('—')[0].trim() || saiGrad;
+    const entraGradShort = entraGrad.split('—')[0].trim() || entraGrad;
+
+    STATE.complementosList.push({
+      id: 'c_' + Date.now(),
+      categoria: 'Troca',
+      militar_re: saiRe,
+      militar_graduacao: saiGrad,
+      militar_nome: saiNome,
+      motivo: motivo,
+      militar_sai_re: saiRe,
+      militar_sai_graduacao: saiGrad,
+      militar_sai_nome: saiNome,
+      militar_sai_prontidao: saiProntidao,
+      militar_entra_re: entraRe,
+      militar_entra_graduacao: entraGrad,
+      militar_entra_nome: entraNome,
+      militar_entra_prontidao: entraProntidao,
+      periodo_horas: periodo,
+      display_formatado: `SAI: ${saiGradShort} RE ${saiRe} ${saiNome} [${saiProntidao}] ➔ ENTRA: ${entraGradShort} RE ${entraRe} ${entraNome} [${entraProntidao}] (${periodo})`
+    });
+
+    renderComplementosLista();
+    atualizarAutossomaPessoal();
+
+    // Limpa campos de troca
+    document.getElementById('comp-troca-sai-re').value = '';
+    document.getElementById('comp-troca-sai-nome').value = '';
+    document.getElementById('comp-troca-entra-re').value = '';
+    document.getElementById('comp-troca-entra-nome').value = '';
+    document.getElementById('comp-troca-motivo').value = '';
+
+    showToast('Troca de serviço lançada com sucesso!', 'success');
+  }
+
   function removerComplemento(idx) {
     STATE.complementosList.splice(idx, 1);
     renderComplementosLista();
@@ -620,29 +769,59 @@ const App = (function() {
 
     let html = '';
     STATE.complementosList.forEach((c, idx) => {
-      html += `
-        <div class="complemento-item-card">
-          <div class="complemento-item-info">
-            <div>
-              <span class="status-badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171; font-weight: 700; margin-right: 0.5rem;">${c.categoria}</span>
-              <strong style="color: #fff;">${c.militar_graduacao} ${c.militar_re} ${c.militar_nome}</strong>
+      const isTroca = String(c.categoria || '').toLowerCase().includes('troca');
+      if (isTroca) {
+        const saiGrad = c.militar_sai_graduacao ? (c.militar_sai_graduacao.split('—')[0].trim() || c.militar_sai_graduacao) : '';
+        const entraGrad = c.militar_entra_graduacao ? (c.militar_entra_graduacao.split('—')[0].trim() || c.militar_entra_graduacao) : '';
+        const saiDisp = [saiGrad, c.militar_sai_re ? `RE ${c.militar_sai_re}` : '', c.militar_sai_nome].filter(Boolean).join(' ');
+        const entraDisp = [entraGrad, c.militar_entra_re ? `RE ${c.militar_entra_re}` : '', c.militar_entra_nome].filter(Boolean).join(' ');
+
+        html += `
+          <div class="complemento-item-card" style="border-left: 3px solid #3b82f6;">
+            <div class="complemento-item-info">
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span class="status-badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; font-weight: 700;">🔄 TROCA DE SERVIÇO</span>
+                <span class="status-badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; font-weight: 700;">⏱️ ${c.periodo_horas || '24 Horas'}</span>
+              </div>
+              <div style="margin-top: 0.45rem; display: flex; flex-direction: column; gap: 0.25rem;">
+                <div style="color: #fca5a5; font-size: 0.85rem;">
+                  <strong style="color: #ef4444;">🔴 SAI:</strong> ${saiDisp} <span style="color: var(--text-muted); font-size: 0.78rem;">(Prontidão ${c.militar_sai_prontidao || 'Verde'})</span>
+                </div>
+                <div style="color: #86efac; font-size: 0.85rem;">
+                  <strong style="color: #10b981;">🟢 ENTRA:</strong> ${entraDisp} <span style="color: var(--text-muted); font-size: 0.78rem;">(Prontidão ${c.militar_entra_prontidao || 'Azul'})</span>
+                </div>
+              </div>
+              ${c.motivo ? `<div style="color: var(--text-secondary); font-size: 0.78rem; margin-top: 0.25rem;">📝 Obs: ${c.motivo}</div>` : ''}
             </div>
-            ${c.motivo ? `<div style="color: var(--text-secondary); font-size: 0.78rem;">📝 Motivo: ${c.motivo}</div>` : ''}
+            <button type="button" class="btn btn-danger btn-sm" onclick="App.removerComplemento(${idx})">Remover</button>
           </div>
-          <button type="button" class="btn btn-danger btn-sm" onclick="App.removerComplemento(${idx})">Remover</button>
-        </div>
-      `;
+        `;
+      } else {
+        html += `
+          <div class="complemento-item-card">
+            <div class="complemento-item-info">
+              <div>
+                <span class="status-badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171; font-weight: 700; margin-right: 0.5rem;">${c.categoria}</span>
+                <strong style="color: #fff;">${c.militar_graduacao} ${c.militar_re} ${c.militar_nome}</strong>
+              </div>
+              ${c.motivo ? `<div style="color: var(--text-secondary); font-size: 0.78rem;">📝 Motivo: ${c.motivo}</div>` : ''}
+            </div>
+            <button type="button" class="btn btn-danger btn-sm" onclick="App.removerComplemento(${idx})">Remover</button>
+          </div>
+        `;
+      }
     });
     container.innerHTML = html;
   }
 
   function atualizarAutossomaPessoal() {
-    let falta = 0, folga = 0, baixas = 0, visitantes = 0, licenca = 0, restricao = 0, estagiarios = 0;
+    let falta = 0, folga = 0, troca = 0, baixas = 0, visitantes = 0, licenca = 0, restricao = 0, estagiarios = 0;
 
     STATE.complementosList.forEach(c => {
       const cat = String(c.categoria || '').trim().toLowerCase();
       if (cat === 'falta') falta++;
       else if (cat === 'folga') folga++;
+      else if (cat === 'troca' || cat.includes('troca')) troca++;
       else if (cat === 'baixas' || cat === 'baixa') baixas++;
       else if (cat === 'visitantes' || cat === 'visitante') visitantes++;
       else if (cat.includes('licença') || cat.includes('convalescença') || cat.includes('licenca')) licenca++;
@@ -662,6 +841,7 @@ const App = (function() {
 
     updateCard('sec1-falta-val', 'card-cnt-falta', falta);
     updateCard('sec1-folga-val', 'card-cnt-folga', folga);
+    updateCard('sec1-troca-val', 'card-cnt-troca', troca);
     updateCard('sec1-baixas-val', 'card-cnt-baixas', baixas);
     updateCard('sec1-visitantes-val', 'card-cnt-visitantes', visitantes);
     updateCard('sec1-licenca-val', 'card-cnt-licenca', licenca);
@@ -1331,6 +1511,7 @@ const App = (function() {
     if (STATE.complementosList.length === 0) {
       document.getElementById('sec1-falta-val').innerText = p.falta || 0;
       if (document.getElementById('sec1-folga-val')) document.getElementById('sec1-folga-val').innerText = p.folga || 0;
+      if (document.getElementById('sec1-troca-val')) document.getElementById('sec1-troca-val').innerText = p.troca || 0;
       document.getElementById('sec1-baixas-val').innerText = p.baixas || 0;
       document.getElementById('sec1-visitantes-val').innerText = p.visitantes || 0;
       document.getElementById('sec1-licenca-val').innerText = p.licenca_convalescenca || 0;
@@ -1579,6 +1760,7 @@ const App = (function() {
         pessoal: {
           falta: parseInt(document.getElementById('sec1-falta-val').innerText, 10) || 0,
           folga: parseInt(document.getElementById('sec1-folga-val').innerText, 10) || 0,
+          troca: parseInt(document.getElementById('sec1-troca-val') ? document.getElementById('sec1-troca-val').innerText : '0', 10) || 0,
           baixas: parseInt(document.getElementById('sec1-baixas-val').innerText, 10) || 0,
           visitantes: parseInt(document.getElementById('sec1-visitantes-val').innerText, 10) || 0,
           licenca_convalescenca: parseInt(document.getElementById('sec1-licenca-val').innerText, 10) || 0,
@@ -1775,6 +1957,8 @@ const App = (function() {
     doc.querySelector('#p-falta').innerText = pes.falta || 0;
     const elPFolga = doc.querySelector('#p-folga');
     if (elPFolga) elPFolga.innerText = pes.folga || 0;
+    const elPTroca = doc.querySelector('#p-troca');
+    if (elPTroca) elPTroca.innerText = pes.troca || 0;
     doc.querySelector('#p-baixas').innerText = pes.baixas || 0;
     doc.querySelector('#p-visitantes').innerText = pes.visitantes || 0;
     doc.querySelector('#p-licenca').innerText = pes.licenca_convalescenca || 0;
@@ -1782,7 +1966,18 @@ const App = (function() {
     doc.querySelector('#p-estagiarios').innerText = pes.estagiarios || 0;
     // Seção 1: Complementos detalhados
     if (pes.complementos && pes.complementos.length > 0) {
-      doc.querySelector('#p-pessoal-complemento').innerHTML = pes.complementos.map(c => `• [${c.categoria}] <strong>${c.militar_graduacao || ''} ${c.militar_re || ''} ${c.militar_nome || ''}</strong>${c.motivo ? ' — ' + c.motivo : ''}`).join('<br>') + (pes.complemento ? `<br><em>${pes.complemento}</em>` : '');
+      doc.querySelector('#p-pessoal-complemento').innerHTML = pes.complementos.map(c => {
+        if (String(c.categoria || '').toLowerCase().includes('troca')) {
+          const saiGrad = c.militar_sai_graduacao ? (c.militar_sai_graduacao.split('—')[0].trim() || c.militar_sai_graduacao) : '';
+          const entraGrad = c.militar_entra_graduacao ? (c.militar_entra_graduacao.split('—')[0].trim() || c.militar_entra_graduacao) : '';
+          const saiDisp = [saiGrad, c.militar_sai_re ? `RE ${c.militar_sai_re}` : '', c.militar_sai_nome].filter(Boolean).join(' ');
+          const entraDisp = [entraGrad, c.militar_entra_re ? `RE ${c.militar_entra_re}` : '', c.militar_entra_nome].filter(Boolean).join(' ');
+          const periodo = c.periodo_horas ? ` [${c.periodo_horas}]` : '';
+          const motivo = c.motivo ? ` — Obs: ${c.motivo}` : '';
+          return `• [TROCA DE SERVIÇO] SAI: <strong>${saiDisp}</strong> (Prontidão ${c.militar_sai_prontidao || '-'}) ➔ ENTRA: <strong>${entraDisp}</strong> (Prontidão ${c.militar_entra_prontidao || '-'})${periodo}${motivo}`;
+        }
+        return `• [${c.categoria}] <strong>${c.militar_graduacao || ''} ${c.militar_re || ''} ${c.militar_nome || ''}</strong>${c.motivo ? ' — ' + c.motivo : ''}`;
+      }).join('<br>') + (pes.complemento ? `<br><em>${pes.complemento}</em>` : '');
     } else {
       doc.querySelector('#p-pessoal-complemento').innerText = pes.complemento || 'Sem alterações';
     }
@@ -2461,6 +2656,10 @@ const App = (function() {
     buscarInstrutorSec9: buscarInstrutorSec9,
     buscarNomeRonda: buscarNomeRonda,
     buscarMilitarComplemento: buscarMilitarComplemento,
+    onCategoriaComplementoChange: onCategoriaComplementoChange,
+    buscarMilitarTrocaSai: buscarMilitarTrocaSai,
+    buscarMilitarTrocaEntra: buscarMilitarTrocaEntra,
+    incluirTrocaServico: incluirTrocaServico,
     incluirComplemento: incluirComplemento,
     removerComplemento: removerComplemento,
     abrirModalCatalogoMaterial: abrirModalCatalogoMaterial,

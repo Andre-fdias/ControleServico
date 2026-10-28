@@ -412,19 +412,42 @@ test('9. Autossoma de Pessoal via Complementos', async (t) => {
       { categoria: 'Licença / Convalescença', militar_re: '40404', militar_graduacao: 'Subten PM', militar_nome: 'Roberto Santos', motivo: 'LTS 15 dias' },
       { categoria: 'Restrição', militar_re: '50505', militar_graduacao: 'Cb PM', militar_nome: 'Marcos Souza', motivo: 'B-60' },
       { categoria: 'Visitantes', militar_re: '60606', militar_graduacao: 'Cap PM', militar_nome: 'Carlos Lima', motivo: 'Visita técnica' },
-      { categoria: 'Estagiários', militar_re: '70707', militar_graduacao: 'Al Sd PM', militar_nome: 'Pedro Aluno', motivo: 'Estágio EB' }
+      { categoria: 'Estagiários', militar_re: '70707', militar_graduacao: 'Al Sd PM', militar_nome: 'Pedro Aluno', motivo: 'Estágio EB' },
+      {
+        categoria: 'Troca',
+        militar_sai_re: '90909',
+        militar_sai_graduacao: 'Sd PM',
+        militar_sai_nome: 'João Silva',
+        militar_sai_prontidao: 'Verde',
+        militar_entra_re: '91919',
+        militar_entra_graduacao: 'Sd PM',
+        militar_entra_nome: 'Manoel Pereira',
+        militar_entra_prontidao: 'Azul',
+        periodo_horas: '24 Horas',
+        motivo: 'Troca de serviço'
+      }
     ]
   };
 
   const saved = SecoesOperacionais.savePessoal(regId, payloadPessoal);
   assert.equal(saved.falta, 1, 'Autossoma Falta deve ser 1');
   assert.equal(saved.folga, 1, 'Autossoma Folga deve ser 1');
+  assert.equal(saved.troca, 1, 'Autossoma Troca deve ser 1');
   assert.equal(saved.baixas, 2, 'Autossoma Baixas deve ser 2');
   assert.equal(saved.licenca_convalescenca, 1, 'Autossoma Licença deve ser 1');
   assert.equal(saved.restricao, 1, 'Autossoma Restrição deve ser 1');
   assert.equal(saved.visitantes, 1, 'Autossoma Visitantes deve ser 1');
   assert.equal(saved.estagiarios, 1, 'Autossoma Estagiários deve ser 1');
-  assert.equal(saved.complementos.length, 8, 'Deve persistir os 8 complementos individuais');
+  assert.equal(saved.complementos.length, 9, 'Deve persistir os 9 complementos individuais');
+  const trocaItem = saved.complementos.find(c => c.categoria === 'Troca');
+  assert.ok(trocaItem, 'Deve encontrar o complemento de Troca');
+  assert.equal(trocaItem.militar_sai_re, '90909');
+  assert.equal(trocaItem.militar_entra_re, '91919');
+  assert.equal(trocaItem.militar_sai_prontidao, 'Verde');
+  assert.equal(trocaItem.militar_entra_prontidao, 'Azul');
+  assert.equal(trocaItem.periodo_horas, '24 Horas');
+  assert.ok(trocaItem.display_formatado.includes('SAI:'), 'display_formatado deve conter SAI:');
+  assert.ok(trocaItem.display_formatado.includes('ENTRA:'), 'display_formatado deve conter ENTRA:');
 });
 
 test('10. Viaturas com Guarnição e Catálogo Permanente', async (t) => {
