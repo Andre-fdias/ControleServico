@@ -489,5 +489,34 @@ test('10. Viaturas com Guarnição e Catálogo Permanente', async (t) => {
   assert.equal(savedVtr.viaturas[0].motorista_re, '20202');
   assert.equal(savedVtr.viaturas[0].auxiliares.length, 1);
   assert.equal(savedVtr.viaturas[0].auxiliares[0].re, '30303');
+
+  // Frota da Unidade
+  assert.ok(Config.SCHEMAS.CATALOGO_MATERIAIS, 'CATALOGO_MATERIAIS deve estar nos SCHEMAS');
+  assert.ok(Config.SCHEMAS.MATERIAIS_BELICOS.includes('observacoes'), 'MATERIAIS_BELICOS deve incluir coluna observacoes');
+  assert.equal(Config.TAB_FROTA_VIATURAS, 'dados_viatura', 'Aba da frota deve ser dados_viatura');
+  const frota = SecoesOperacionais.listViaturasFrota('2º SGB', 'pb_sroque');
+  assert.ok(Array.isArray(frota) && frota.length > 0, 'Deve listar viaturas da frota');
+
+  // Persistência Completa de Materiais Bélicos
+  const savedBelicos = SecoesOperacionais.saveMateriaisBelicos(regId, {
+    armamentos: [
+      { tipo: 'Pistola Glock', modelo: 'Glock .40', marca: 'Glock', numero_serie: 'BVRA190', quantidade: 1 }
+    ],
+    coletes: [
+      { tipo: 'Colete Balístico', tamanho: 'G', capas: 'Inbrapel', numero_serie: 'COL-999', quantidade: 1 }
+    ],
+    municoes: [
+      { tipo: 'Munição .40 S&W', quantidade: 30 }
+    ],
+    outros_materiais: '1 Escudo Balístico Nível III'
+  });
+  assert.equal(savedBelicos.armamentos.length, 1, 'Deve persistir 1 armamento');
+  assert.equal(savedBelicos.armamentos[0].numero_serie, 'BVRA190');
+  assert.equal(savedBelicos.coletes.length, 1, 'Deve persistir 1 colete');
+  assert.equal(savedBelicos.coletes[0].tipo, 'Colete Balístico');
+  assert.equal(savedBelicos.coletes[0].numero_serie, 'COL-999');
+  assert.equal(savedBelicos.municoes.length, 1, 'Deve persistir 1 munição');
+  assert.equal(savedBelicos.municoes[0].quantidade, 30);
+  assert.equal(savedBelicos.outros_materiais, '1 Escudo Balístico Nível III');
 });
 

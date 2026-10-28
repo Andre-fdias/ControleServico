@@ -478,18 +478,18 @@ function apiGetFullBackup(token) {
 function apiListViaturasFrota(sgb, pbNome, token) {
   try {
     if (token) _requireSession(token);
-    return { success: true, viaturas: SecoesOperacionais.listViaturasFrota(sgb, pbNome) };
+    return JSON.stringify({ success: true, viaturas: SecoesOperacionais.listViaturasFrota(sgb, pbNome) });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message });
   }
 }
 
 function apiGetCatalogoMateriais(token) {
   try {
     if (token) _requireSession(token);
-    return { success: true, catalogo: SecoesOperacionais.getCatalogoMateriais() };
+    return JSON.stringify({ success: true, catalogo: SecoesOperacionais.getCatalogoMateriais() });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message });
   }
 }
 
@@ -497,9 +497,9 @@ function apiSaveItemCatalogo(item, token) {
   try {
     _requireSession(token);
     const saved = SecoesOperacionais.saveItemCatalogo(item);
-    return { success: true, item: saved };
+    return JSON.stringify({ success: true, item: saved });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message });
   }
 }
 
@@ -507,9 +507,9 @@ function apiDeleteItemCatalogo(id, token) {
   try {
     _requireSession(token);
     SecoesOperacionais.deleteItemCatalogo(id);
-    return { success: true };
+    return JSON.stringify({ success: true });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message });
   }
 }
 
@@ -517,9 +517,9 @@ function apiQuickRegisterMilitar(data, token) {
   try {
     _requireSession(token);
     const created = Militares.quickRegisterMilitar(data);
-    return { success: true, militar: created };
+    return JSON.stringify({ success: true, militar: created });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message });
   }
 }
 
@@ -528,9 +528,9 @@ function apiSyncEfetivoSisFolgas(token) {
     const sessionUser = _requireSession(token);
     Authorization.requirePermission(sessionUser, 'GERENCIAR_MILITARES');
     const result = Militares.syncEfetivoFromSisFolgas();
-    return result;
+    return JSON.stringify(result);
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message });
   }
 }
 

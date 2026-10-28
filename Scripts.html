@@ -867,21 +867,48 @@ const App = (function() {
           if (STATE.initialData) STATE.initialData.catalogoMateriais = lista;
         }
       }
-      STATE.catalogoMateriais = lista;
+      STATE.catalogoMateriais = lista || [];
 
       tbody.innerHTML = '';
-      if (lista.length === 0) {
+      if (STATE.catalogoMateriais.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1rem;">Nenhum material no catálogo. Cadastre no botão acima.</td></tr>';
         return;
       }
 
-      lista.forEach((item, idx) => {
+      STATE.catalogoMateriais.forEach((item, idx) => {
         const tr = document.createElement('tr');
         tr.className = 'catalogo-row';
-        tr.dataset.itemId = item.id;
-        tr.dataset.categoria = item.categoria;
+        tr.dataset.itemId = item.id || `cat_${idx}`;
+        tr.dataset.categoria = item.categoria || '';
+        tr.dataset.tipo = item.tipo || '';
+        tr.dataset.modelo = item.modelo_tamanho || '';
+        tr.dataset.marca = item.marca_capas || '';
+        tr.dataset.serie = item.numero_serie || '';
 
-        const isChecked = itensMarcados ? itensMarcados.some(m => m.tipo === item.tipo || m.numero_serie === item.numero_serie) : true;
+        let isChecked = false;
+        let savedQty = item.quantidade_padrao || 1;
+
+        if (!itensMarcados) {
+          // Novo registro: marca todos por padrão
+          isChecked = true;
+        } else {
+          const found = itensMarcados.find(m => {
+            if (item.numero_serie && m.numero_serie) {
+              return String(item.numero_serie).trim().toUpperCase() === String(m.numero_serie).trim().toUpperCase();
+            }
+            if (item.tipo && m.tipo) {
+              return String(item.tipo).trim().toLowerCase() === String(m.tipo).trim().toLowerCase();
+            }
+            return false;
+          });
+          if (found) {
+            isChecked = true;
+            if (found.quantidade !== undefined && found.quantidade !== null && found.quantidade !== '') {
+              savedQty = found.quantidade;
+            }
+          }
+        }
+
         const catBadgeColor = item.categoria === 'armamento' ? '#ef4444' : (item.categoria === 'colete' ? '#3b82f6' : '#10b981');
 
         tr.innerHTML = `
@@ -893,7 +920,7 @@ const App = (function() {
           <td>${item.marca_capas || '-'}</td>
           <td><code>${item.numero_serie || 'N/A'}</code></td>
           <td style="text-align: center;">
-            <input type="number" min="0" class="form-input cat-qtd" style="max-width: 70px; text-align: center; padding: 2px 4px;" value="${item.quantidade_padrao || 1}">
+            <input type="number" min="0" class="form-input cat-qtd" style="max-width: 70px; text-align: center; padding: 2px 4px;" value="${savedQty}">
           </td>
         `;
         tbody.appendChild(tr);
@@ -951,24 +978,27 @@ const App = (function() {
   // ========================================================================
   STATE.viaturasCards = [];
 
-  async function carregarViaturasDaFrota(pbId = null, sgb = null) {
+  async function carregarViaturasDaFrota(pbId = null, sgb = null, forceRefresh = false) {
     const container = document.getElementById('container-viaturas');
     if (!container) return;
 
     try {
-      let frotas = STATE.initialData && STATE.initialData.viaturasFrota ? STATE.initialData.viaturasFrota : [];
-      if (!frotas || frotas.length === 0) {
+      let frotas = (!forceRefresh && STATE.initialData && STATE.initialData.viaturasFrota) ? STATE.initialData.viaturasFrota : [];
+      if (!frotas || frotas.length === 0 || forceRefresh) {
         const res = await rpc('apiListViaturasFrota', sgb, pbId, STATE.token);
-        if (res.success && res.viaturas) frotas = res.viaturas;
+        if (res.success && res.viaturas && res.viaturas.length > 0) {
+          frotas = res.viaturas;
+          if (STATE.initialData) STATE.initialData.viaturasFrota = frotas;
+        }
       }
 
       container.innerHTML = '';
       STATE.viaturasCards = [];
 
-      frotas.forEach(v => {
+      (frotas || []).forEach(v => {
         adicionarCardViatura({
           prefixo: v.prefixo,
-          situacao: v.status || 'Operando',
+          situacao: v.status || v.situacao || 'Operando',
           estacao: v.estacao || '',
           km: v.km || '',
           observacoes: v.km ? `KM: ${v.km}` : '',
@@ -1698,30 +1728,36 @@ const App = (function() {
         if (chk && chk.checked) {
           const itemId = row.dataset.itemId;
           const cat = row.dataset.categoria;
-          const qtd = parseInt(row.querySelector('.cat-qtd').value, 10) || 1;
-          const itemDef = (STATE.catalogoMateriais || []).find(c => String(c.id) === String(itemId));
-          if (itemDef) {
-            if (cat === 'armamento') {
-              armamentos.push({
-                tipo: itemDef.tipo,
-                modelo: itemDef.modelo_tamanho,
-                marca: itemDef.marca_capas,
-                numero_serie: itemDef.numero_serie,
-                quantidade: qtd
-              });
-            } else if (cat === 'colete') {
-              coletes.push({
-                tamanho: itemDef.modelo_tamanho,
-                quantidade: qtd,
-                capas: itemDef.marca_capas,
-                numero_serie: itemDef.numero_serie
-              });
-            } else if (cat === 'municao') {
-              municoes.push({
-                tipo: itemDef.tipo,
-                quantidade: qtd
-              });
-            }
+          const qtdInput = row.querySelector('.cat-qtd');
+          const qtd = qtdInput ? (parseInt(qtdInput.value, 10) || 1) : 1;
+          const itemDef = (STATE.catalogoMateriais || []).find(c => String(c.id) === String(itemId)) || {};
+
+          const tipo = itemDef.tipo || row.dataset.tipo || '';
+          const modelo = itemDef.modelo_tamanho || row.dataset.modelo || '';
+          const marca = itemDef.marca_capas || row.dataset.marca || '';
+          const serie = itemDef.numero_serie !== undefined && itemDef.numero_serie !== null ? itemDef.numero_serie : (row.dataset.serie || '');
+
+          if (cat === 'armamento') {
+            armamentos.push({
+              tipo: tipo,
+              modelo: modelo,
+              marca: marca,
+              numero_serie: serie,
+              quantidade: qtd
+            });
+          } else if (cat === 'colete') {
+            coletes.push({
+              tipo: tipo || 'Colete Balístico',
+              tamanho: modelo,
+              quantidade: qtd,
+              capas: marca,
+              numero_serie: serie
+            });
+          } else if (cat === 'municao') {
+            municoes.push({
+              tipo: tipo,
+              quantidade: qtd
+            });
           }
         }
       });

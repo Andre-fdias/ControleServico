@@ -17,7 +17,7 @@ var Config = (function() {
 
   // Planilhas integradas do ecossistema PMESP
   const SPREADSHEET_FROTA_ID = '1Yddf9EORz6izjuYQhYBPN23edWIaJgxcb1qIXwu35A4';
-  const TAB_FROTA_VIATURAS = 'dados_viaturas';
+  const TAB_FROTA_VIATURAS = 'dados_viatura';
   const SPREADSHEET_SISFOLGAS_ID = '1lZ7YX6QnSZYES1_FziJczRPxbsu7DUdJdjd63zRj7CU';
   const TAB_SISFOLGAS_EFETIVO = 'EFETIVO';
 
@@ -229,6 +229,18 @@ var Config = (function() {
       'marca_capas',
       'numero_serie',
       'quantidade',
+      'observacoes',
+      'atualizado_em'
+    ],
+    CATALOGO_MATERIAIS: [
+      'id',
+      'categoria', // armamento, colete, municao, outros
+      'tipo',
+      'modelo_tamanho',
+      'marca_capas',
+      'numero_serie',
+      'quantidade_padrao',
+      'criado_em',
       'atualizado_em'
     ],
     NOVIDADES_MATERIAIS: [

@@ -178,19 +178,23 @@ var SecoesOperacionais = (function() {
     Database.deleteWhere('MATERIAIS_BELICOS', { registro_id: registroId });
 
     const batch = [];
+    const now = Utils.nowTimestamp();
 
     // 2.1 Armamento
     if (data.armamentos && Array.isArray(data.armamentos)) {
       data.armamentos.forEach(item => {
         if (item.tipo || item.numero_serie || item.modelo) {
           batch.push({
+            id: Utils.generateId('bel'),
             registro_id: registroId,
             categoria: 'armamento',
             tipo: String(item.tipo || '').trim(),
-            modelo_tamanho: String(item.modelo || '').trim(),
-            marca_capas: String(item.marca || '').trim(),
+            modelo_tamanho: String(item.modelo || item.modelo_tamanho || '').trim(),
+            marca_capas: String(item.marca || item.marca_capas || '').trim(),
             numero_serie: String(item.numero_serie || '').trim(),
-            quantidade: 1
+            quantidade: Utils.parseNonNegativeInt(item.quantidade, 1),
+            observacoes: '',
+            atualizado_em: now
           });
         }
       });
@@ -199,15 +203,18 @@ var SecoesOperacionais = (function() {
     // 2.2 Colete Balístico
     if (data.coletes && Array.isArray(data.coletes)) {
       data.coletes.forEach(item => {
-        if (item.tamanho || item.numero_serie || item.quantidade) {
+        if (item.tamanho || item.modelo_tamanho || item.numero_serie || item.quantidade) {
           batch.push({
+            id: Utils.generateId('bel'),
             registro_id: registroId,
             categoria: 'colete',
-            tipo: 'Colete Balístico',
-            modelo_tamanho: String(item.tamanho || '').trim(),
-            marca_capas: String(item.capas || '').trim(),
+            tipo: String(item.tipo || 'Colete Balístico').trim(),
+            modelo_tamanho: String(item.tamanho || item.modelo_tamanho || '').trim(),
+            marca_capas: String(item.capas || item.marca_capas || '').trim(),
             numero_serie: String(item.numero_serie || '').trim(),
-            quantidade: Utils.parseNonNegativeInt(item.quantidade, 1)
+            quantidade: Utils.parseNonNegativeInt(item.quantidade, 1),
+            observacoes: '',
+            atualizado_em: now
           });
         }
       });
@@ -218,13 +225,16 @@ var SecoesOperacionais = (function() {
       data.municoes.forEach(item => {
         if (item.tipo || item.quantidade) {
           batch.push({
+            id: Utils.generateId('bel'),
             registro_id: registroId,
             categoria: 'municao',
             tipo: String(item.tipo || '').trim(),
-            modelo_tamanho: '',
-            marca_capas: '',
-            numero_serie: '',
-            quantidade: Utils.parseNonNegativeInt(item.quantidade, 0)
+            modelo_tamanho: String(item.modelo_tamanho || '').trim(),
+            marca_capas: String(item.marca_capas || '').trim(),
+            numero_serie: String(item.numero_serie || '').trim(),
+            quantidade: Utils.parseNonNegativeInt(item.quantidade, 0),
+            observacoes: '',
+            atualizado_em: now
           });
         }
       });
@@ -233,6 +243,7 @@ var SecoesOperacionais = (function() {
     // Outros materiais bélicos
     if (data.outros_materiais) {
       batch.push({
+        id: Utils.generateId('bel'),
         registro_id: registroId,
         categoria: 'outros',
         tipo: 'Outros Materiais Bélicos',
@@ -240,8 +251,8 @@ var SecoesOperacionais = (function() {
         marca_capas: '',
         numero_serie: '',
         quantidade: 1,
-        atualizado_em: Utils.nowTimestamp(),
-        observacoes: String(data.outros_materiais).trim()
+        observacoes: String(data.outros_materiais).trim(),
+        atualizado_em: now
       });
     }
 
@@ -270,10 +281,12 @@ var SecoesOperacionais = (function() {
           tipo: item.tipo,
           modelo: item.modelo_tamanho,
           marca: item.marca_capas,
-          numero_serie: item.numero_serie
+          numero_serie: item.numero_serie,
+          quantidade: Utils.parseNonNegativeInt(item.quantidade, 1)
         });
       } else if (item.categoria === 'colete') {
         result.coletes.push({
+          tipo: item.tipo || 'Colete Balístico',
           tamanho: item.modelo_tamanho,
           quantidade: Utils.parseNonNegativeInt(item.quantidade, 1),
           capas: item.marca_capas,
@@ -285,7 +298,7 @@ var SecoesOperacionais = (function() {
           quantidade: Utils.parseNonNegativeInt(item.quantidade, 0)
         });
       } else if (item.categoria === 'outros') {
-        result.outros_materiais = item.marca_capas || item.modelo_tamanho || item.tipo || '';
+        result.outros_materiais = item.observacoes || item.marca_capas || item.modelo_tamanho || item.tipo || '';
       }
     });
 
@@ -434,20 +447,31 @@ var SecoesOperacionais = (function() {
   /**
    * Obtém a lista de viaturas da frota da unidade (integrado à planilha de controle de frota)
    */
-  function listViaturasFrota(sgb, pbNome) {
+  function listViaturasFrota(sgb, pbIdentifier) {
     try {
       if (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.openById) {
         const ss = SpreadsheetApp.openById(Config.SPREADSHEET_FROTA_ID);
-        const sheet = ss.getSheetByName(Config.TAB_FROTA_VIATURAS);
+        let sheet = ss.getSheetByName(Config.TAB_FROTA_VIATURAS);
+        if (!sheet) {
+          sheet = ss.getSheetByName('dados_viatura') || ss.getSheetByName('dados_viaturas');
+        }
+        if (!sheet) {
+          const allSheets = ss.getSheets();
+          sheet = allSheets.find(s => {
+            const sid = s.getSheetId();
+            const sname = s.getName().toLowerCase();
+            return sid === 1703671419 || sname.includes('viatura') || sname.includes('frota');
+          });
+        }
         if (sheet) {
           const data = sheet.getDataRange().getValues();
           if (data.length > 1) {
             const headers = data[0].map(h => String(h || '').trim().toUpperCase());
-            const idxPrefixo = headers.indexOf('PREFIXO');
-            const idxEstacao = headers.findIndex(h => h.includes('PERTENCE') || h.includes('ESTAÇÃO') || h.includes('ESTACAO'));
-            const idxSgb = headers.indexOf('SGB');
-            const idxStatus = headers.indexOf('STATUS');
-            const idxKm = headers.indexOf('KM');
+            const idxPrefixo = headers.findIndex(h => h.includes('PREFIXO') || h === 'VTR' || h.includes('VIATURA'));
+            const idxEstacao = headers.findIndex(h => h.includes('PERTENCE') || h.includes('ESTAÇÃO') || h.includes('ESTACAO') || h.includes('POSTO') || h.includes('PB') || h.includes('BASE') || h.includes('LOCAL') || h.includes('CIDADE') || h.includes('MUNICÍPIO') || h.includes('MUNICIPIO'));
+            const idxSgb = headers.findIndex(h => h === 'SGB' || h.includes('SUBGRUPAMENTO'));
+            const idxStatus = headers.findIndex(h => h.includes('STATUS') || h.includes('SITUAÇÃO') || h.includes('SITUACAO') || h.includes('ESTADO') || h.includes('CONDIÇÃO') || h.includes('CONDICAO'));
+            const idxKm = headers.findIndex(h => h === 'KM' || h.includes('QUILOMETR') || h.includes('ODOMETRO') || h.includes('ODÔMETRO'));
 
             const viaturas = [];
             for (let i = 1; i < data.length; i++) {
@@ -468,11 +492,33 @@ var SecoesOperacionais = (function() {
                 km: km
               });
             }
-            if (viaturas.length > 0) return viaturas;
+            if (viaturas.length > 0) {
+              if (pbIdentifier || sgb) {
+                let pbNome = String(pbIdentifier || '').trim().toLowerCase();
+                if (typeof Unidades !== 'undefined' && Unidades.getPostoById) {
+                  const pObj = Unidades.getPostoById(pbIdentifier);
+                  if (pObj && pObj.nome) pbNome = pObj.nome.toLowerCase().trim();
+                }
+                const normSgb = String(sgb || '').toLowerCase().trim();
+                const filtered = viaturas.filter(v => {
+                  const vEst = String(v.estacao || '').toLowerCase();
+                  const vSgb = String(v.sgb || '').toLowerCase();
+                  if (pbNome && (vEst.includes(pbNome) || pbNome.includes(vEst))) return true;
+                  if (normSgb && (vSgb.includes(normSgb) || normSgb.includes(vSgb))) return true;
+                  return false;
+                });
+                if (filtered.length > 0) return filtered;
+              }
+              return viaturas;
+            }
           }
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      if (typeof Logger !== 'undefined') {
+        Logger.log('Erro ao listar viaturas da frota: ' + (e.message || String(e)));
+      }
+    }
 
     // Frota operacional padrão da unidade (2º SGB)
     return [
