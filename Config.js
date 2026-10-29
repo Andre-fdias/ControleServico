@@ -93,7 +93,8 @@ var Config = (function() {
     'Visitantes',
     'Licença / Convalescença',
     'Restrição',
-    'Estagiários'
+    'Estagiários',
+    'DEJEM'
   ];
 
   // Situações operacionais de viaturas
@@ -190,7 +191,7 @@ var Config = (function() {
     COMPLEMENTOS_PESSOAL: [
       'id',
       'registro_id',
-      'categoria', // Falta, Folga, Troca, Baixas, Visitantes, Licença / Convalescença, Restrição, Estagiários
+      'categoria', // Falta, Folga, Troca, Baixas, Visitantes, Licença / Convalescença, Restrição, Estagiários, DEJEM
       'militar_re',
       'militar_graduacao',
       'militar_nome',
@@ -204,6 +205,10 @@ var Config = (function() {
       'militar_entra_nome',
       'militar_entra_prontidao',
       'periodo_horas',
+      'dejem_hora_inicio',
+      'dejem_hora_termino',
+      'dejem_tipo_escala',
+      'dejem_observacoes',
       'atualizado_em'
     ],
     NOVIDADES_PESSOAL: [
@@ -217,6 +222,7 @@ var Config = (function() {
       'licenca_convalescenca',
       'restricao',
       'estagiarios',
+      'dejem',
       'complemento',
       'atualizado_em'
     ],
@@ -287,6 +293,7 @@ var Config = (function() {
       'participantes_nomes',
       'materiais_utilizados',
       'observacoes',
+      'local',
       'atualizado_em'
     ],
     MANUTENCAO_QUARTEL: [

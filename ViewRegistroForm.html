@@ -166,6 +166,10 @@
             <span class="counter-label">Estagiários</span>
             <span class="counter-val" id="sec1-estagiarios-val">0</span>
           </div>
+          <div class="counter-card" id="card-cnt-dejem">
+            <span class="counter-label">DEJEM</span>
+            <span class="counter-val" id="sec1-dejem-val">0</span>
+          </div>
         </div>
 
         <!-- Adicionar Complemento com Autopreenchimento e Autossoma -->
@@ -185,6 +189,7 @@
                 <option value="Licença / Convalescença">Licença / Convalescença</option>
                 <option value="Restrição">Restrição</option>
                 <option value="Estagiários">Estagiários</option>
+                <option value="DEJEM">DEJEM (Jornada Extraordinária)</option>
               </select>
             </div>
           </div>
@@ -379,6 +384,86 @@
               <div class="form-group" style="margin-bottom: 0;">
                 <button type="button" class="btn btn-primary" onclick="App.incluirTrocaServico()" style="white-space: nowrap; height: 38px;">
                   🔄 Incluir Troca
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODO 3: DEJEM (Jornada Extraordinária - 8 Horas Fixas) -->
+          <div id="comp-fields-dejem" style="display: none;">
+            <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.85rem; padding: 0.5rem 0.75rem; background: rgba(245, 158, 11, 0.1); border-left: 3px solid #f59e0b; border-radius: 4px;">
+              ⏱️ <strong>DEJEM (Diária Especial de Jornada Extraordinária):</strong> O serviço tem duração regulamentar de <strong>8 horas</strong>. O horário de término é calculado automaticamente com base no horário de início inserido (+8h).
+            </div>
+
+            <div class="form-row-grid">
+              <div class="form-group" style="position: relative;">
+                <label class="form-label" for="comp-dejem-re">Pesquisar Militar por RE:<span class="required">*</span></label>
+                <div class="input-with-icon">
+                  <span class="input-icon">🔍</span>
+                  <input type="text" class="form-input" id="comp-dejem-re" placeholder="Digite RE do militar..." oninput="App.buscarMilitarDejem(this.value)">
+                </div>
+                <div id="autocomplete-dejem-results" class="autocomplete-results"></div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="comp-dejem-graduacao">Posto / Graduação:<span class="required">*</span></label>
+                <select class="form-select" id="comp-dejem-graduacao">
+                  <optgroup label="1. Oficiais">
+                    <option value="CEL PM">CEL PM — Coronel PM</option>
+                    <option value="TEN CEL PM">TEN CEL PM — Tenente-Coronel PM</option>
+                    <option value="MAJ PM">MAJ PM — Major PM</option>
+                    <option value="CAP PM">CAP PM — Capitão PM</option>
+                    <option value="1º TEN PM">1º TEN PM — 1º Tenente PM</option>
+                    <option value="2º TEN PM">2º TEN PM — 2º Tenente PM</option>
+                    <option value="ASP OF PM">ASP OF PM — Aspirante a Oficial PM</option>
+                  </optgroup>
+                  <optgroup label="2. Praças">
+                    <option value="SUBTEN PM">SUBTEN PM — Subtenente PM</option>
+                    <option value="1º SGT PM">1º SGT PM — 1º Sargento PM</option>
+                    <option value="2º SGT PM">2º SGT PM — 2º Sargento PM</option>
+                    <option value="3º SGT PM">3º SGT PM — 3º Sargento PM</option>
+                    <option value="CB PM">CB PM — Cabo PM</option>
+                    <option value="SD PM" selected>SD PM — Soldado PM</option>
+                    <option value="AL SD PM">AL SD PM — Aluno Soldado PM</option>
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="comp-dejem-nome">Nome Completo:<span class="required">*</span></label>
+              <input type="text" class="form-input" id="comp-dejem-nome" placeholder="Preenchido via RE ou editável">
+            </div>
+
+            <div class="form-row-grid">
+              <div class="form-group">
+                <label class="form-label" for="comp-dejem-hora-inicio">Horário de Início:<span class="required">*</span></label>
+                <input type="time" class="form-input" id="comp-dejem-hora-inicio" value="06:00" oninput="App.onDejemHoraInicioChange(this.value)" onchange="App.onDejemHoraInicioChange(this.value)">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="comp-dejem-hora-termino">Horário de Término (Calculado automaticamente: +8h):</label>
+                <input type="text" class="form-input" id="comp-dejem-hora-termino" value="14:00" readonly style="background: rgba(0,0,0,0.3); font-weight: 700; color: #fbbf24; cursor: not-allowed;">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="comp-dejem-tipo-escala">Tipo de Escala:<span class="required">*</span></label>
+                <select class="form-select" id="comp-dejem-tipo-escala">
+                  <option value="Corta-Fogo" selected>Corta - Fogo</option>
+                  <option value="Enchente">Enchente</option>
+                  <option value="Mergulho">Mergulho</option>
+                  <option value="Folga">Folga</option>
+                  <option value="Outras">Outras</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="comp-dejem-obs">Observações (Alterações não previstas):</label>
+              <div style="display: flex; gap: 0.5rem;">
+                <input type="text" class="form-input" id="comp-dejem-obs" placeholder="Ex: Alterações não previstas, remanejamento operacional, ocorrência...">
+                <button type="button" class="btn btn-warning" onclick="App.incluirDejem()" style="white-space: nowrap; font-weight: 700;">
+                  ➕ Incluir DEJEM
                 </button>
               </div>
             </div>
@@ -635,6 +720,28 @@
         <div class="form-group">
           <label class="form-label" for="sec9-atividades">Atividades Realizadas:</label>
           <textarea class="form-textarea" id="sec9-atividades" placeholder="Ex: Corrida contínua 5km, circuito funcional de força e calistenia..."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="sec9-local">Local / Endereço da Atividade Física:</label>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <div class="input-with-icon" style="flex: 1; min-width: 250px;">
+              <span class="input-icon">📍</span>
+              <input type="text" class="form-input" id="sec9-local" placeholder="Digite o local ou endereço (ex: Pista de Atletismo - Praça Central)..." oninput="App.onLocalTreinamentoInput(this.value)" onchange="App.onLocalTreinamentoChange(this.value)">
+            </div>
+            <button type="button" class="btn btn-secondary" onclick="App.abrirMapsLocalTreinamento()" title="Abrir localização no Google Maps">
+              🗺️ Abrir no Maps
+            </button>
+          </div>
+          <!-- Preview interativo do Mapa (NÃO impresso no relatório) -->
+          <div id="sec9-mapa-preview" class="mapa-local-preview no-print" style="margin-top: 0.75rem; display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; font-size: 0.75rem; color: var(--text-muted);">
+              <span>📍 Visualização do Local (Não sairá na impressão do PDF):</span>
+              <a href="#" id="sec9-mapa-link-externo" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; text-decoration: underline;">Abrir em tela cheia ↗</a>
+            </div>
+            <div style="border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); height: 220px; background: #111;">
+              <iframe id="sec9-mapa-iframe" width="100%" height="100%" frameborder="0" style="border:0;" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+            </div>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label" for="sec9-instrutor-re">Instrutor Responsável (RE):</label>

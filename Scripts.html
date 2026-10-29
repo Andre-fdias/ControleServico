@@ -518,6 +518,49 @@ const App = (function() {
     }
   }
 
+  // ========================================================================
+  // SEÇÃO 9: TREINAMENTO FÍSICO — MAPA E LOCALIZAÇÃO
+  // ========================================================================
+  let _mapaSearchTimer = null;
+  function onLocalTreinamentoInput(val) {
+    clearTimeout(_mapaSearchTimer);
+    _mapaSearchTimer = setTimeout(() => {
+      atualizarPreviewMapaLocal(val);
+    }, 600);
+  }
+
+  function onLocalTreinamentoChange(val) {
+    clearTimeout(_mapaSearchTimer);
+    atualizarPreviewMapaLocal(val);
+  }
+
+  function atualizarPreviewMapaLocal(endereco) {
+    const previewBox = document.getElementById('sec9-mapa-preview');
+    const iframe = document.getElementById('sec9-mapa-iframe');
+    const linkExt = document.getElementById('sec9-mapa-link-externo');
+    if (!previewBox || !iframe) return;
+    const query = String(endereco || '').trim();
+    if (!query || query.length < 3) {
+      previewBox.style.display = 'none';
+      iframe.src = 'about:blank';
+      return;
+    }
+    const encoded = encodeURIComponent(query);
+    iframe.src = `https://maps.google.com/maps?q=${encoded}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+    if (linkExt) linkExt.href = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
+    previewBox.style.display = 'block';
+  }
+
+  function abrirMapsLocalTreinamento() {
+    const val = document.getElementById('sec9-local') ? document.getElementById('sec9-local').value.trim() : '';
+    if (!val) {
+      showToast('Digite um endereço ou local no campo correspondente primeiro.', 'warning');
+      return;
+    }
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(val)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
   function toggleAccordion(id) {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('active');
@@ -532,12 +575,21 @@ const App = (function() {
     const cat = document.getElementById('comp-categoria').value;
     const boxPadrao = document.getElementById('comp-fields-padrao');
     const boxTroca = document.getElementById('comp-fields-troca');
+    const boxDejem = document.getElementById('comp-fields-dejem');
     if (cat === 'Troca') {
       if (boxPadrao) boxPadrao.style.display = 'none';
       if (boxTroca) boxTroca.style.display = 'block';
+      if (boxDejem) boxDejem.style.display = 'none';
+    } else if (cat === 'DEJEM') {
+      if (boxPadrao) boxPadrao.style.display = 'none';
+      if (boxTroca) boxTroca.style.display = 'none';
+      if (boxDejem) boxDejem.style.display = 'block';
+      const hi = document.getElementById('comp-dejem-hora-inicio');
+      if (hi) onDejemHoraInicioChange(hi.value);
     } else {
       if (boxPadrao) boxPadrao.style.display = 'block';
       if (boxTroca) boxTroca.style.display = 'none';
+      if (boxDejem) boxDejem.style.display = 'none';
     }
   }
 
@@ -752,6 +804,112 @@ const App = (function() {
     showToast('Troca de serviço lançada com sucesso!', 'success');
   }
 
+  // ========================================================================
+  // REGRAS OPERACIONAIS DEJEM: 8 HORAS REGULAMENTARES & AUTO-CÁLCULO
+  // ========================================================================
+  function calcularTerminoDejem(horaInicio) {
+    if (!horaInicio || !horaInicio.includes(':')) return '14:00';
+    const parts = horaInicio.split(':');
+    let h = parseInt(parts[0], 10);
+    let m = parseInt(parts[1], 10);
+    if (isNaN(h)) h = 6;
+    if (isNaN(m)) m = 0;
+    const endH = (h + 8) % 24;
+    return `${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
+  function onDejemHoraInicioChange(val) {
+    const terminoEl = document.getElementById('comp-dejem-hora-termino');
+    if (terminoEl) {
+      terminoEl.value = calcularTerminoDejem(val);
+    }
+  }
+
+  async function buscarMilitarDejem(query) {
+    const container = document.getElementById('autocomplete-dejem-results');
+    if (!query || query.trim().length < 2) {
+      if (container) container.style.display = 'none';
+      return;
+    }
+
+    try {
+      const res = await rpc('apiSearchMilitares', query);
+      if (res.success && res.results.length > 0) {
+        container.innerHTML = '';
+        res.results.forEach(m => {
+          const item = document.createElement('div');
+          item.className = 'autocomplete-item';
+          item.innerText = m.display_formatado;
+          item.onclick = () => {
+            document.getElementById('comp-dejem-re').value = m.re;
+            const selGrad = document.getElementById('comp-dejem-graduacao');
+            for (let i = 0; i < selGrad.options.length; i++) {
+              if (selGrad.options[i].value.toUpperCase() === String(m.graduacao || '').trim().toUpperCase() ||
+                  selGrad.options[i].text.toUpperCase().includes(String(m.graduacao || '').trim().toUpperCase())) {
+                selGrad.selectedIndex = i;
+                break;
+              }
+            }
+            document.getElementById('comp-dejem-nome').value = m.nome_completo;
+            container.style.display = 'none';
+          };
+          container.appendChild(item);
+        });
+        container.style.display = 'block';
+      } else {
+        if (container) container.style.display = 'none';
+      }
+    } catch (e) {
+      if (container) container.style.display = 'none';
+    }
+  }
+
+  function incluirDejem() {
+    const re = document.getElementById('comp-dejem-re').value.trim();
+    const graduacao = document.getElementById('comp-dejem-graduacao').value;
+    const nome = document.getElementById('comp-dejem-nome').value.trim();
+    const horaInicio = document.getElementById('comp-dejem-hora-inicio').value.trim() || '06:00';
+    let horaTermino = document.getElementById('comp-dejem-hora-termino').value.trim();
+    if (!horaTermino) horaTermino = calcularTerminoDejem(horaInicio);
+    const tipoEscala = document.getElementById('comp-dejem-tipo-escala').value;
+    const obs = document.getElementById('comp-dejem-obs').value.trim();
+
+    if (!re) {
+      showToast('Informe o RE do militar para a escala DEJEM.', 'error');
+      return;
+    }
+    if (!nome) {
+      showToast('Informe o nome do militar para a escala DEJEM.', 'error');
+      return;
+    }
+
+    const gradShort = graduacao.split('—')[0].trim() || graduacao;
+
+    STATE.complementosList.push({
+      id: 'c_' + Date.now(),
+      categoria: 'DEJEM',
+      militar_re: re,
+      militar_graduacao: graduacao,
+      militar_nome: nome,
+      motivo: obs,
+      dejem_hora_inicio: horaInicio,
+      dejem_hora_termino: horaTermino,
+      dejem_tipo_escala: tipoEscala,
+      dejem_observacoes: obs,
+      display_formatado: `[DEJEM - ${tipoEscala}] ${gradShort} RE ${re} ${nome} | Horário: ${horaInicio} às ${horaTermino} (8h)${obs ? ' | Obs: ' + obs : ''}`
+    });
+
+    renderComplementosLista();
+    atualizarAutossomaPessoal();
+
+    // Limpa campos específicos de DEJEM
+    document.getElementById('comp-dejem-re').value = '';
+    document.getElementById('comp-dejem-nome').value = '';
+    document.getElementById('comp-dejem-obs').value = '';
+
+    showToast(`Militar em DEJEM (${tipoEscala} - 8h) incluído com sucesso!`, 'success');
+  }
+
   function removerComplemento(idx) {
     STATE.complementosList.splice(idx, 1);
     renderComplementosLista();
@@ -770,6 +928,8 @@ const App = (function() {
     let html = '';
     STATE.complementosList.forEach((c, idx) => {
       const isTroca = String(c.categoria || '').toLowerCase().includes('troca');
+      const isDejem = String(c.categoria || '').toLowerCase().includes('dejem');
+
       if (isTroca) {
         const saiGrad = c.militar_sai_graduacao ? (c.militar_sai_graduacao.split('—')[0].trim() || c.militar_sai_graduacao) : '';
         const entraGrad = c.militar_entra_graduacao ? (c.militar_entra_graduacao.split('—')[0].trim() || c.militar_entra_graduacao) : '';
@@ -796,6 +956,27 @@ const App = (function() {
             <button type="button" class="btn btn-danger btn-sm" onclick="App.removerComplemento(${idx})">Remover</button>
           </div>
         `;
+      } else if (isDejem) {
+        const gradShort = c.militar_graduacao ? (c.militar_graduacao.split('—')[0].trim() || c.militar_graduacao) : '';
+        const milDisp = [gradShort, c.militar_re ? `RE ${c.militar_re}` : '', c.militar_nome].filter(Boolean).join(' ');
+        const escala = c.dejem_tipo_escala || 'Corta-Fogo';
+        const horario = (c.dejem_hora_inicio && c.dejem_hora_termino) ? `${c.dejem_hora_inicio} às ${c.dejem_hora_termino}` : '06:00 às 14:00';
+        html += `
+          <div class="complemento-item-card" style="border-left: 3px solid #f59e0b;">
+            <div class="complemento-item-info">
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span class="status-badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; font-weight: 700;">⏱️ DEJEM</span>
+                <span class="status-badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; font-weight: 700;">Escala: ${escala}</span>
+                <span class="status-badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-weight: 700;">🕒 ${horario} (8h)</span>
+              </div>
+              <div style="margin-top: 0.4rem; color: #fff; font-size: 0.88rem; font-weight: 600;">
+                ${milDisp}
+              </div>
+              ${c.dejem_observacoes || c.motivo ? `<div style="color: var(--text-secondary); font-size: 0.78rem; margin-top: 0.2rem;">📝 Obs: ${c.dejem_observacoes || c.motivo}</div>` : ''}
+            </div>
+            <button type="button" class="btn btn-danger btn-sm" onclick="App.removerComplemento(${idx})">Remover</button>
+          </div>
+        `;
       } else {
         html += `
           <div class="complemento-item-card">
@@ -815,7 +996,7 @@ const App = (function() {
   }
 
   function atualizarAutossomaPessoal() {
-    let falta = 0, folga = 0, troca = 0, baixas = 0, visitantes = 0, licenca = 0, restricao = 0, estagiarios = 0;
+    let falta = 0, folga = 0, troca = 0, baixas = 0, visitantes = 0, licenca = 0, restricao = 0, estagiarios = 0, dejem = 0;
 
     STATE.complementosList.forEach(c => {
       const cat = String(c.categoria || '').trim().toLowerCase();
@@ -827,6 +1008,7 @@ const App = (function() {
       else if (cat.includes('licença') || cat.includes('convalescença') || cat.includes('licenca')) licenca++;
       else if (cat.includes('restrição') || cat.includes('restricao')) restricao++;
       else if (cat.includes('estagiário') || cat.includes('estagiario') || cat.includes('estagiários')) estagiarios++;
+      else if (cat.includes('dejem')) dejem++;
     });
 
     const updateCard = (idVal, idCard, count) => {
@@ -847,6 +1029,7 @@ const App = (function() {
     updateCard('sec1-licenca-val', 'card-cnt-licenca', licenca);
     updateCard('sec1-restricao-val', 'card-cnt-restricao', restricao);
     updateCard('sec1-estagiarios-val', 'card-cnt-estagiarios', estagiarios);
+    updateCard('sec1-dejem-val', 'card-cnt-dejem', dejem);
   }
 
   // ========================================================================
@@ -1671,6 +1854,10 @@ const App = (function() {
     document.getElementById('sec8-observacoes').value = '';
 
     document.getElementById('sec9-atividades').value = '';
+    if (document.getElementById('sec9-local')) {
+      document.getElementById('sec9-local').value = '';
+      atualizarPreviewMapaLocal('');
+    }
     document.getElementById('sec9-instrutor-re').value = '';
     document.getElementById('sec9-instrutor-nome').value = '';
     document.getElementById('sec9-observacoes').value = '';
@@ -1773,6 +1960,7 @@ const App = (function() {
       document.getElementById('sec1-licenca-val').innerText = p.licenca_convalescenca || 0;
       document.getElementById('sec1-restricao-val').innerText = p.restricao || 0;
       document.getElementById('sec1-estagiarios-val').innerText = p.estagiarios || 0;
+      if (document.getElementById('sec1-dejem-val')) document.getElementById('sec1-dejem-val').innerText = p.dejem || 0;
     }
 
     // Seção 2: Material Bélico via Catálogo Permanente
@@ -1827,6 +2015,10 @@ const App = (function() {
       }
       if (t.treinamento_fisico) {
         document.getElementById('sec9-atividades').value = t.treinamento_fisico.atividades_realizadas || '';
+        if (document.getElementById('sec9-local')) {
+          document.getElementById('sec9-local').value = t.treinamento_fisico.local || '';
+          atualizarPreviewMapaLocal(t.treinamento_fisico.local || '');
+        }
         document.getElementById('sec9-instrutor-re').value = t.treinamento_fisico.instrutor_re || '';
         document.getElementById('sec9-instrutor-nome').value = t.treinamento_fisico.instrutor_nome || '';
         document.getElementById('sec9-observacoes').value = t.treinamento_fisico.observacoes || '';
@@ -2029,6 +2221,7 @@ const App = (function() {
           licenca_convalescenca: parseInt(document.getElementById('sec1-licenca-val').innerText, 10) || 0,
           restricao: parseInt(document.getElementById('sec1-restricao-val').innerText, 10) || 0,
           estagiarios: parseInt(document.getElementById('sec1-estagiarios-val').innerText, 10) || 0,
+          dejem: parseInt(document.getElementById('sec1-dejem-val') ? document.getElementById('sec1-dejem-val').innerText : '0', 10) || 0,
           complemento: document.getElementById('sec1-complemento').value,
           complementos: STATE.complementosList || []
         },
@@ -2072,6 +2265,7 @@ const App = (function() {
           },
           treinamento_fisico: {
             atividades_realizadas: document.getElementById('sec9-atividades').value,
+            local: document.getElementById('sec9-local') ? document.getElementById('sec9-local').value.trim() : '',
             instrutor_re: document.getElementById('sec9-instrutor-re').value,
             instrutor_nome: document.getElementById('sec9-instrutor-nome').value,
             observacoes: document.getElementById('sec9-observacoes').value
@@ -2227,6 +2421,8 @@ const App = (function() {
     doc.querySelector('#p-licenca').innerText = pes.licenca_convalescenca || 0;
     doc.querySelector('#p-restricao').innerText = pes.restricao || 0;
     doc.querySelector('#p-estagiarios').innerText = pes.estagiarios || 0;
+    const elPDejem = doc.querySelector('#p-dejem');
+    if (elPDejem) elPDejem.innerText = pes.dejem || 0;
     // Seção 1: Complementos detalhados
     if (pes.complementos && pes.complementos.length > 0) {
       doc.querySelector('#p-pessoal-complemento').innerHTML = pes.complementos.map(c => {
@@ -2238,6 +2434,12 @@ const App = (function() {
           const periodo = c.periodo_horas ? ` [${c.periodo_horas}]` : '';
           const motivo = c.motivo ? ` — Obs: ${c.motivo}` : '';
           return `• [TROCA DE SERVIÇO] SAI: <strong>${saiDisp}</strong> (Prontidão ${c.militar_sai_prontidao || '-'}) ➔ ENTRA: <strong>${entraDisp}</strong> (Prontidão ${c.militar_entra_prontidao || '-'})${periodo}${motivo}`;
+        } else if (String(c.categoria || '').toLowerCase().includes('dejem')) {
+          const milDisp = [c.militar_graduacao || '', c.militar_re ? `RE ${c.militar_re}` : '', c.militar_nome || ''].filter(Boolean).join(' ');
+          const escala = c.dejem_tipo_escala ? ` [${c.dejem_tipo_escala}]` : '';
+          const horario = (c.dejem_hora_inicio && c.dejem_hora_termino) ? ` (${c.dejem_hora_inicio} às ${c.dejem_hora_termino} - 8h)` : ' (8h)';
+          const obs = c.dejem_observacoes ? ` — Obs: ${c.dejem_observacoes}` : (c.motivo ? ` — Obs: ${c.motivo}` : '');
+          return `• [DEJEM${escala}] <strong>${milDisp}</strong>${horario}${obs}`;
         }
         return `• [${c.categoria}] <strong>${c.militar_graduacao || ''} ${c.militar_re || ''} ${c.militar_nome || ''}</strong>${c.motivo ? ' — ' + c.motivo : ''}`;
       }).join('<br>') + (pes.complemento ? `<br><em>${pes.complemento}</em>` : '');
@@ -2321,6 +2523,8 @@ const App = (function() {
 
     if (tr.treinamento_fisico) {
       doc.querySelector('#p-tf-atividades').innerText = tr.treinamento_fisico.atividades_realizadas || '-';
+      const elLocal = doc.querySelector('#p-tf-local');
+      if (elLocal) elLocal.innerText = tr.treinamento_fisico.local || '-';
       doc.querySelector('#p-tf-instrutor').innerText = `${tr.treinamento_fisico.instrutor_re || ''} ${tr.treinamento_fisico.instrutor_nome || ''}`.trim() || '-';
       doc.querySelector('#p-tf-obs').innerText = tr.treinamento_fisico.observacoes || '-';
     }
@@ -2917,12 +3121,19 @@ const App = (function() {
     buscarInstrutorSec7: buscarInstrutorSec7,
     buscarInstrutorSec8: buscarInstrutorSec8,
     buscarInstrutorSec9: buscarInstrutorSec9,
+    onLocalTreinamentoInput: onLocalTreinamentoInput,
+    onLocalTreinamentoChange: onLocalTreinamentoChange,
+    atualizarPreviewMapaLocal: atualizarPreviewMapaLocal,
+    abrirMapsLocalTreinamento: abrirMapsLocalTreinamento,
     buscarNomeRonda: buscarNomeRonda,
     buscarMilitarComplemento: buscarMilitarComplemento,
     onCategoriaComplementoChange: onCategoriaComplementoChange,
     buscarMilitarTrocaSai: buscarMilitarTrocaSai,
     buscarMilitarTrocaEntra: buscarMilitarTrocaEntra,
     incluirTrocaServico: incluirTrocaServico,
+    onDejemHoraInicioChange: onDejemHoraInicioChange,
+    buscarMilitarDejem: buscarMilitarDejem,
+    incluirDejem: incluirDejem,
     incluirComplemento: incluirComplemento,
     removerComplemento: removerComplemento,
     abrirModalCatalogoMaterial: abrirModalCatalogoMaterial,

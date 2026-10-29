@@ -425,9 +425,27 @@ test('9. Autossoma de Pessoal via Complementos', async (t) => {
         militar_entra_prontidao: 'Azul',
         periodo_horas: '24 Horas',
         motivo: 'Troca de serviço'
+      },
+      {
+        categoria: 'DEJEM',
+        militar_re: '80808',
+        militar_graduacao: 'Sd PM',
+        militar_nome: 'Fabio Ferreira',
+        dejem_hora_inicio: '06:00',
+        dejem_hora_termino: '14:00',
+        dejem_tipo_escala: 'Corta-Fogo',
+        dejem_observacoes: 'Apoio à Operação Corta-Fogo na área rural'
       }
     ]
   };
+
+  // Verificações de Esquema e Constantes
+  assert.ok(Config.CATEGORIAS_PESSOAL.includes('DEJEM'), 'CATEGORIAS_PESSOAL deve incluir DEJEM');
+  assert.ok(Config.SCHEMAS.NOVIDADES_PESSOAL.includes('dejem'), 'SCHEMAS.NOVIDADES_PESSOAL deve incluir dejem');
+  assert.ok(Config.SCHEMAS.COMPLEMENTOS_PESSOAL.includes('dejem_hora_inicio'), 'COMPLEMENTOS_PESSOAL deve ter dejem_hora_inicio');
+  assert.ok(Config.SCHEMAS.COMPLEMENTOS_PESSOAL.includes('dejem_hora_termino'), 'COMPLEMENTOS_PESSOAL deve ter dejem_hora_termino');
+  assert.ok(Config.SCHEMAS.COMPLEMENTOS_PESSOAL.includes('dejem_tipo_escala'), 'COMPLEMENTOS_PESSOAL deve ter dejem_tipo_escala');
+  assert.ok(Config.SCHEMAS.ATIVIDADES_TREINAMENTO.includes('local'), 'ATIVIDADES_TREINAMENTO deve incluir campo local');
 
   const saved = SecoesOperacionais.savePessoal(regId, payloadPessoal);
   assert.equal(saved.falta, 1, 'Autossoma Falta deve ser 1');
@@ -438,7 +456,9 @@ test('9. Autossoma de Pessoal via Complementos', async (t) => {
   assert.equal(saved.restricao, 1, 'Autossoma Restrição deve ser 1');
   assert.equal(saved.visitantes, 1, 'Autossoma Visitantes deve ser 1');
   assert.equal(saved.estagiarios, 1, 'Autossoma Estagiários deve ser 1');
-  assert.equal(saved.complementos.length, 9, 'Deve persistir os 9 complementos individuais');
+  assert.equal(saved.dejem, 1, 'Autossoma DEJEM deve ser 1');
+  assert.equal(saved.complementos.length, 10, 'Deve persistir os 10 complementos individuais (incluindo DEJEM)');
+
   const trocaItem = saved.complementos.find(c => c.categoria === 'Troca');
   assert.ok(trocaItem, 'Deve encontrar o complemento de Troca');
   assert.equal(trocaItem.militar_sai_re, '90909');
@@ -448,6 +468,29 @@ test('9. Autossoma de Pessoal via Complementos', async (t) => {
   assert.equal(trocaItem.periodo_horas, '24 Horas');
   assert.ok(trocaItem.display_formatado.includes('SAI:'), 'display_formatado deve conter SAI:');
   assert.ok(trocaItem.display_formatado.includes('ENTRA:'), 'display_formatado deve conter ENTRA:');
+
+  const dejemItem = saved.complementos.find(c => c.categoria === 'DEJEM');
+  assert.ok(dejemItem, 'Deve encontrar o complemento DEJEM');
+  assert.equal(dejemItem.militar_re, '80808');
+  assert.equal(dejemItem.dejem_hora_inicio, '06:00');
+  assert.equal(dejemItem.dejem_hora_termino, '14:00');
+  assert.equal(dejemItem.dejem_tipo_escala, 'Corta-Fogo');
+  assert.equal(dejemItem.dejem_observacoes, 'Apoio à Operação Corta-Fogo na área rural');
+  assert.ok(dejemItem.display_formatado.includes('DEJEM [Corta-Fogo]'), 'display_formatado deve conter DEJEM [Corta-Fogo]');
+  assert.ok(dejemItem.display_formatado.includes('06:00 às 14:00'), 'display_formatado deve conter horário 06:00 às 14:00');
+
+  // Teste Seção 9: Treinamento Físico com campo "Local"
+  const savedTr = SecoesOperacionais.saveTreinamentos(regId, {
+    treinamento_fisico: {
+      atividades_realizadas: 'Corrida contínua 5km e flexões na barra fixa',
+      local: 'Pista de Atletismo - Praça da Matriz',
+      instrutor_re: '108154',
+      instrutor_nome: '1º Sgt PM André Dias',
+      observacoes: 'Efetivo em perfeitas condições físicas'
+    }
+  });
+  assert.ok(savedTr.treinamento_fisico, 'Deve retornar treinamento físico');
+  assert.equal(savedTr.treinamento_fisico.local, 'Pista de Atletismo - Praça da Matriz', 'Local do Treinamento Físico deve persistir corretamente');
 });
 
 test('10. Viaturas com Guarnição e Catálogo Permanente', async (t) => {

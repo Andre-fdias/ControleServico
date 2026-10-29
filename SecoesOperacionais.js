@@ -21,6 +21,7 @@ var SecoesOperacionais = (function() {
     let licencaCount = 0;
     let restricaoCount = 0;
     let estagiariosCount = 0;
+    let dejemCount = 0;
 
     if (complementosList.length > 0) {
       complementosList.forEach(item => {
@@ -33,6 +34,7 @@ var SecoesOperacionais = (function() {
         else if (cat.includes('licença') || cat.includes('convalescença') || cat.includes('licenca')) licencaCount++;
         else if (cat.includes('restrição') || cat.includes('restricao')) restricaoCount++;
         else if (cat.includes('estagiário') || cat.includes('estagiario') || cat.includes('estagiários')) estagiariosCount++;
+        else if (cat.includes('dejem')) dejemCount++;
       });
     } else {
       // Fallback para valores diretos caso não haja complementos detalhados
@@ -44,6 +46,7 @@ var SecoesOperacionais = (function() {
       licencaCount = Utils.parseNonNegativeInt(data.licenca_convalescenca, 0);
       restricaoCount = Utils.parseNonNegativeInt(data.restricao, 0);
       estagiariosCount = Utils.parseNonNegativeInt(data.estagiarios, 0);
+      dejemCount = Utils.parseNonNegativeInt(data.dejem, 0);
     }
 
     const cleanData = {
@@ -56,6 +59,7 @@ var SecoesOperacionais = (function() {
       licenca_convalescenca: licencaCount,
       restricao: restricaoCount,
       estagiarios: estagiariosCount,
+      dejem: dejemCount,
       complemento: String(data.complemento || '').trim(),
       atualizado_em: Utils.nowTimestamp()
     };
@@ -92,6 +96,10 @@ var SecoesOperacionais = (function() {
           militar_entra_nome: String(c.militar_entra_nome || c.entra_nome || '').trim(),
           militar_entra_prontidao: String(c.militar_entra_prontidao || c.entra_prontidao || '').trim(),
           periodo_horas: String(c.periodo_horas || c.periodo || '').trim(),
+          dejem_hora_inicio: String(c.dejem_hora_inicio || '').trim(),
+          dejem_hora_termino: String(c.dejem_hora_termino || '').trim(),
+          dejem_tipo_escala: String(c.dejem_tipo_escala || '').trim(),
+          dejem_observacoes: String(c.dejem_observacoes || '').trim(),
           atualizado_em: Utils.nowTimestamp()
         };
       });
@@ -117,6 +125,13 @@ var SecoesOperacionais = (function() {
         const saiDisp = [saiGrad, c.militar_sai_re ? `RE ${c.militar_sai_re}` : '', c.militar_sai_nome].filter(Boolean).join(' ');
         const entraDisp = [entraGrad, c.militar_entra_re ? `RE ${c.militar_entra_re}` : '', c.militar_entra_nome].filter(Boolean).join(' ');
         displayFormatado = `SAI: ${saiDisp || '-'} [${c.militar_sai_prontidao || 'Sem prontidão'}] ➔ ENTRA: ${entraDisp || '-'} [${c.militar_entra_prontidao || 'Sem prontidão'}] (${c.periodo_horas || '24 Horas'})`;
+      } else if (catLower.includes('dejem')) {
+        const grad = c.militar_graduacao ? (c.militar_graduacao.split('—')[0].trim() || c.militar_graduacao) : '';
+        const milDisp = [grad, c.militar_re ? `RE ${c.militar_re}` : '', c.militar_nome].filter(Boolean).join(' ');
+        const escala = c.dejem_tipo_escala ? `[${c.dejem_tipo_escala}]` : '';
+        const horario = (c.dejem_hora_inicio && c.dejem_hora_termino) ? `${c.dejem_hora_inicio} às ${c.dejem_hora_termino}` : '8 horas';
+        const obs = c.dejem_observacoes ? ` | Obs: ${c.dejem_observacoes}` : (c.motivo ? ` | Obs: ${c.motivo}` : '');
+        displayFormatado = `DEJEM ${escala}: ${milDisp} (${horario})${obs}`;
       }
       return {
         id: c.id,
@@ -134,6 +149,10 @@ var SecoesOperacionais = (function() {
         militar_entra_nome: c.militar_entra_nome || '',
         militar_entra_prontidao: c.militar_entra_prontidao || '',
         periodo_horas: c.periodo_horas || '',
+        dejem_hora_inicio: c.dejem_hora_inicio || '',
+        dejem_hora_termino: c.dejem_hora_termino || '',
+        dejem_tipo_escala: c.dejem_tipo_escala || '',
+        dejem_observacoes: c.dejem_observacoes || '',
         display_formatado: displayFormatado
       };
     });
@@ -149,6 +168,7 @@ var SecoesOperacionais = (function() {
         licenca_convalescenca: Utils.parseNonNegativeInt(p.licenca_convalescenca, 0),
         restricao: Utils.parseNonNegativeInt(p.restricao, 0),
         estagiarios: Utils.parseNonNegativeInt(p.estagiarios, 0),
+        dejem: Utils.parseNonNegativeInt(p.dejem, 0),
         complemento: p.complemento || '',
         complementos: complementos
       };
@@ -163,6 +183,7 @@ var SecoesOperacionais = (function() {
       licenca_convalescenca: 0,
       restricao: 0,
       estagiarios: 0,
+      dejem: 0,
       complemento: '',
       complementos: []
     };
@@ -737,7 +758,8 @@ var SecoesOperacionais = (function() {
         participantes_res: '',
         participantes_nomes: '',
         materiais_utilizados: '',
-        observacoes: String(tf.observacoes || '').trim()
+        observacoes: String(tf.observacoes || '').trim(),
+        local: String(tf.local || '').trim()
       });
     }
 
@@ -774,7 +796,8 @@ var SecoesOperacionais = (function() {
         atividades_realizadas: '',
         instrutor_re: '',
         instrutor_nome: '',
-        observacoes: ''
+        observacoes: '',
+        local: ''
       }
     };
 
@@ -805,7 +828,8 @@ var SecoesOperacionais = (function() {
           atividades_realizadas: item.treinamento_assunto || '',
           instrutor_re: item.instrutor_re || '',
           instrutor_nome: item.instrutor_nome || '',
-          observacoes: item.observacoes || ''
+          observacoes: item.observacoes || '',
+          local: item.local || ''
         };
       }
     });
