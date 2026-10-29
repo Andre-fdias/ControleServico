@@ -33,29 +33,29 @@
 
       <div id="login-error-alert" class="login-error-alert" style="display: none;"></div>
 
-      <form id="form-login" onsubmit="event.preventDefault(); if(typeof fazerLogin==='function'){fazerLogin();}else if(window.App){window.App.fazerLogin();} return false;">
+      <form id="form-login" onsubmit="event.preventDefault(); window.fazerLogin(); return false;">
         <div class="form-group">
           <label class="form-label" for="login-re">Identificador (Número do RE):</label>
           <div class="input-with-icon">
             <span class="input-icon">👤</span>
-            <input type="text" class="form-input" id="login-re" placeholder="Ex: 108154 ou admin" required autocomplete="username" autofocus onkeydown="if(event.key==='Enter'){event.preventDefault(); if(typeof fazerLogin==='function'){fazerLogin();}else if(window.App){window.App.fazerLogin();}}">
+            <input type="text" class="form-input" id="login-re" placeholder="Ex: 108154 ou admin" required autocomplete="username" autofocus>
           </div>
         </div>
 
         <div class="form-group">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <label class="form-label" for="login-senha" style="margin-bottom: 0.4rem;">Senha de Acesso:</label>
-            <button type="button" onclick="if(typeof togglePasswordVisibility==='function'){togglePasswordVisibility('login-senha', this);}else if(window.App){window.App.togglePasswordVisibility('login-senha', this);}" style="background: none; border: none; color: var(--text-muted); font-size: 0.78rem; cursor: pointer; padding: 0;">
+            <button type="button" onclick="window.togglePasswordVisibility('login-senha', this)" style="background: none; border: none; color: var(--text-muted); font-size: 0.78rem; cursor: pointer; padding: 0;">
               👁️ Mostrar
             </button>
           </div>
           <div class="input-with-icon">
             <span class="input-icon">🔑</span>
-            <input type="password" class="form-input" id="login-senha" placeholder="Digite seu RE ou sua senha" required autocomplete="current-password" onkeydown="if(event.key==='Enter'){event.preventDefault(); if(typeof fazerLogin==='function'){fazerLogin();}else if(window.App){window.App.fazerLogin();}}">
+            <input type="password" class="form-input" id="login-senha" placeholder="Digite seu RE ou sua senha" required autocomplete="current-password">
           </div>
         </div>
 
-        <button type="button" class="btn btn-primary btn-login-submit" id="btn-login-submit" onclick="if(typeof fazerLogin==='function'){fazerLogin();}else if(window.App){window.App.fazerLogin();}">
+        <button type="button" class="btn btn-primary btn-login-submit" id="btn-login-submit" onclick="window.fazerLogin()">
           Entrar no Sistema
         </button>
       </form>
@@ -66,3 +66,200 @@
     </div>
   </div>
 </section>
+
+<script>
+(function() {
+  function alternarVisibilidadeSenha(inputId, btn) {
+    var inp = document.getElementById(inputId);
+    if (!inp) return;
+    if (inp.type === 'password') {
+      inp.type = 'text';
+      if (btn) btn.innerHTML = '🙈 Ocultar';
+    } else {
+      inp.type = 'password';
+      if (btn) btn.innerHTML = '👁️ Mostrar';
+    }
+  }
+  window.togglePasswordVisibility = alternarVisibilidadeSenha;
+
+  async function processarLogin() {
+    var reInput = document.getElementById('login-re');
+    var senhaInput = document.getElementById('login-senha');
+    var btn = document.getElementById('btn-login-submit');
+    var errBox = document.getElementById('login-error-alert');
+
+    if (errBox) {
+      errBox.style.display = 'none';
+      errBox.innerText = '';
+    }
+
+    var username = reInput ? reInput.value.trim() : '';
+    var password = senhaInput ? senhaInput.value.trim() : '';
+
+    if (!username || !password) {
+      if (errBox) {
+        errBox.innerText = 'Preencha seu RE e sua senha de acesso.';
+        errBox.style.display = 'block';
+      }
+      if (!username && reInput) reInput.focus();
+      else if (!password && senhaInput) senhaInput.focus();
+      return;
+    }
+
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span style="display:inline-block; animation: spin 0.8s linear infinite; margin-right: 6px;">⏳</span> Verificando...';
+    }
+
+    // Se o App já estiver inicializado, delega para sua lógica
+    if (window.App && typeof window.App.fazerLoginInterno === 'function') {
+      try {
+        await window.App.fazerLoginInterno(username, password);
+      } catch (e) {
+        if (errBox) {
+          errBox.innerText = 'Erro: ' + (e.message || e);
+          errBox.style.display = 'block';
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = 'Entrar no Sistema';
+        }
+      }
+      return;
+    }
+
+    // Fallback nativo imediato via RPC
+    try {
+      var resposta = null;
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        resposta = await new Promise(function(resolve) {
+          google.script.run
+            .withSuccessHandler(function(res) {
+              if (typeof res === 'string') {
+                try { res = JSON.parse(res); } catch (e) {}
+              }
+              resolve(res);
+            })
+            .withFailureHandler(function(err) {
+              resolve({ success: false, message: (err && err.message) ? err.message : String(err) });
+            })
+            .apiLogin(username, password);
+        });
+      } else {
+        var fetchRes = await fetch('/api/apiLogin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify([username, password])
+        });
+        resposta = await fetchRes.json();
+        if (typeof resposta === 'string') {
+          try { resposta = JSON.parse(resposta); } catch (e) {}
+        }
+      }
+
+      if (!resposta || !resposta.success) {
+        if (errBox) {
+          errBox.innerText = (resposta && resposta.message) ? resposta.message : 'Credenciais inválidas. Verifique os dados informados.';
+          errBox.style.display = 'block';
+        }
+        return;
+      }
+
+      // Sessão bem-sucedida!
+      try {
+        sessionStorage.setItem('cbm_session_token', resposta.token);
+        sessionStorage.setItem('cbm_session_user', JSON.stringify(resposta.user));
+      } catch (e) {}
+
+      // Oculta tela de login imediatamente
+      var loginScreen = document.getElementById('login-screen');
+      if (loginScreen) loginScreen.style.display = 'none';
+
+      // Atualiza cabeçalho do usuário
+      var headerRe = document.getElementById('header-user-re');
+      var headerNome = document.getElementById('header-user-nome');
+      var headerRole = document.getElementById('header-user-role-tag');
+      if (headerRe) headerRe.innerText = resposta.user.re;
+      if (headerNome) headerNome.innerText = resposta.user.nome_completo;
+      if (headerRole) {
+        headerRole.innerText = resposta.user.perfil.toUpperCase();
+        headerRole.className = 'user-role-tag role-' + resposta.user.perfil;
+      }
+
+      // Se o App já estiver carregado ou carregar logo em seguida
+      if (window.App && typeof window.App.aplicarSessaoAutenticada === 'function') {
+        window.App.aplicarSessaoAutenticada();
+      }
+
+      // Verifica troca obrigatória de senha
+      if (resposta.user && (resposta.user.forcar_troca_senha === true || String(resposta.user.forcar_troca_senha).toUpperCase() === 'SIM')) {
+        var modalTroca = document.getElementById('modal-troca-senha');
+        if (modalTroca) modalTroca.classList.add('active');
+      }
+    } catch (err) {
+      if (errBox) {
+        errBox.innerText = 'Erro de comunicação: ' + (err.message || err);
+        errBox.style.display = 'block';
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = 'Entrar no Sistema';
+      }
+    }
+  }
+
+  window.fazerLogin = processarLogin;
+
+  function bindLoginForm() {
+    var btn = document.getElementById('btn-login-submit');
+    var form = document.getElementById('form-login');
+    var re = document.getElementById('login-re');
+    var pass = document.getElementById('login-senha');
+
+    if (form) {
+      form.onsubmit = function(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        processarLogin();
+        return false;
+      };
+    }
+
+    if (btn) {
+      btn.onclick = function(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        processarLogin();
+      };
+    }
+
+    if (re) {
+      re.onkeydown = function(e) {
+        if (e.key === 'Enter') {
+          if (e.preventDefault) e.preventDefault();
+          if (pass && !pass.value.trim()) {
+            pass.focus();
+          } else {
+            processarLogin();
+          }
+        }
+      };
+    }
+
+    if (pass) {
+      pass.onkeydown = function(e) {
+        if (e.key === 'Enter') {
+          if (e.preventDefault) e.preventDefault();
+          processarLogin();
+        }
+      };
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindLoginForm);
+  } else {
+    bindLoginForm();
+  }
+})();
+</script>

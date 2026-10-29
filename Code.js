@@ -117,7 +117,7 @@ function menuAbrirSistemaWeb() {
     url = ScriptApp.getService().getUrl();
   } catch (e) {}
   if (!url) {
-    url = 'https://script.google.com/macros/s/AKfycbyJ2bT7f4fx7h-EW0dnwrD82ilcVLHkWZLCNvKu1eeFSLaLzSUCImExSTIHk2UP4Zzb/exec';
+    url = 'https://script.google.com/macros/s/AKfycbxfe4LMj7D2R2sXP6FddN993eOCtGWVsVWe2YOjBQkEc-aGWhKeL5tzjavPWPM6GHiH/exec';
   }
 
   const html = HtmlService.createHtmlOutput(
