@@ -20,6 +20,86 @@ var App = (function() {
   };
 
   /**
+   * Utilitários do Cliente (Formatação de data, RE e strings)
+   */
+  const Utils = {
+    formatDateBR(dateStr) {
+      if (!dateStr) return '';
+      const parts = String(dateStr).split('T')[0].split('-');
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+      return String(dateStr);
+    }
+  };
+
+  /**
+   * Sistema de Cache em Memória e SessionStorage para Acelerar a Aplicação
+   */
+  const Cache = {
+    get(key, maxAgeMs = 15 * 60 * 1000) {
+      try {
+        const item = sessionStorage.getItem('cbm_cache_' + key);
+        if (!item) return null;
+        const parsed = JSON.parse(item);
+        if (Date.now() - parsed.timestamp > maxAgeMs) {
+          sessionStorage.removeItem('cbm_cache_' + key);
+          return null;
+        }
+        return parsed.data;
+      } catch (e) {
+        return null;
+      }
+    },
+    set(key, data) {
+      try {
+        sessionStorage.setItem('cbm_cache_' + key, JSON.stringify({
+          timestamp: Date.now(),
+          data: data
+        }));
+      } catch (e) {}
+    },
+    clear(key) {
+      try {
+        if (key) sessionStorage.removeItem('cbm_cache_' + key);
+        else {
+          Object.keys(sessionStorage).forEach(k => {
+            if (k.startsWith('cbm_cache_')) sessionStorage.removeItem(k);
+          });
+        }
+      } catch (e) {}
+    }
+  };
+
+  /**
+   * Monitoramento de Inatividade (Expira após 10 minutos sem uso)
+   */
+  let lastActivityThrottle = Date.now();
+  function registrarAtividade() {
+    const now = Date.now();
+    if (now - lastActivityThrottle > 10000) { // grava a cada 10s no máximo
+      lastActivityThrottle = now;
+      try {
+        sessionStorage.setItem('cbm_last_activity', String(now));
+      } catch (e) {}
+    }
+  }
+
+  function iniciarMonitoramentoInatividade() {
+    ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
+      window.addEventListener(evt, registrarAtividade, { passive: true });
+    });
+
+    setInterval(() => {
+      if (!STATE.token) return;
+      const last = parseInt(sessionStorage.getItem('cbm_last_activity') || '0', 10);
+      if (last > 0 && (Date.now() - last > 10 * 60 * 1000)) {
+        fazerLogout('Sessão expirada por inatividade (10 minutos sem uso).');
+      }
+    }, 15000);
+  }
+
+  /**
    * Chamador de RPC seguro (Compatível com google.script.run e dev_server local)
    */
   function rpc(functionName, ...args) {
@@ -158,8 +238,9 @@ var App = (function() {
    * Inicialização da Aplicação
    */
   async function init() {
-    // Liga os listeners diretos do formulário e botão de login para máxima resiliência
+    // 1. Registra monitoramento de inatividade e listeners de login
     try {
+      iniciarMonitoramentoInatividade();
       const formLogin = document.getElementById('form-login');
       if (formLogin) {
         formLogin.onsubmit = function(e) {
@@ -176,36 +257,54 @@ var App = (function() {
         };
       }
     } catch (e) {
-      console.warn('Erro ao registrar listeners de login:', e);
+      console.warn('Aviso no bind de listeners:', e);
     }
 
+    // 2. Restauração de Sessão Persistente (sobrevive a F5/Refresh)
     let savedToken = null;
     let savedUserJson = null;
+    let lastActive = 0;
     try {
       savedToken = sessionStorage.getItem('cbm_session_token');
       savedUserJson = sessionStorage.getItem('cbm_session_user');
+      lastActive = parseInt(sessionStorage.getItem('cbm_last_activity') || '0', 10);
     } catch (e) {}
 
-    if (savedToken && savedUserJson) {
-      try {
-        STATE.token = savedToken;
-        STATE.user = JSON.parse(savedUserJson);
-        const res = await rpc('apiGetInitialData', STATE.token);
-        if (res && res.success) {
-          STATE.initialData = res;
-          popularSelectsGrupamentoEPosto(res);
-          aplicarSessaoAutenticada();
-          return;
-        }
-      } catch (e) {}
-      try { sessionStorage.clear(); } catch (e) {}
-      STATE.token = null;
-      STATE.user = null;
+    const isInactiveExpired = lastActive > 0 && (Date.now() - lastActive > 10 * 60 * 1000);
+
+    if (savedToken && savedUserJson && !isInactiveExpired) {
+      STATE.token = savedToken;
+      try { STATE.user = JSON.parse(savedUserJson); } catch (e) {}
+      sessionStorage.setItem('cbm_last_activity', String(Date.now()));
+
+      // Aplica sessão imediatamente (oculta tela de login sem flicker)
+      aplicarSessaoAutenticada();
+
+      // Carrega metadados e dashboard com suporte a cache instantâneo
+      carregarDadosIniciais();
+      carregarDashboard();
+      return;
     }
 
-    // Caso não autenticado, garante tela de login visível
-    const loginScreen = document.getElementById('login-screen');
-    if (loginScreen) loginScreen.style.display = 'flex';
+    // Sessão inexistente ou expirada por mais de 10 min de inatividade
+    await fazerLogout(isInactiveExpired ? 'Sua sessão expirou por inatividade (10 minutos sem uso).' : null);
+  }
+
+  /**
+   * Sincroniza dados da sessão em memória e armazenamento
+   */
+  function setSessionData(token, user) {
+    STATE.token = token;
+    STATE.user = user;
+    try {
+      sessionStorage.setItem('cbm_session_token', token);
+      sessionStorage.setItem('cbm_session_user', JSON.stringify(user));
+      sessionStorage.setItem('cbm_last_activity', String(Date.now()));
+    } catch (e) {}
+
+    aplicarSessaoAutenticada();
+    carregarDadosIniciais();
+    carregarDashboard();
   }
 
   /**
@@ -253,23 +352,7 @@ var App = (function() {
         return;
       }
 
-      STATE.token = res.token;
-      STATE.user = res.user;
-
-      try {
-        sessionStorage.setItem('cbm_session_token', STATE.token);
-        sessionStorage.setItem('cbm_session_user', JSON.stringify(STATE.user));
-      } catch (e) {}
-
-      // Aplica imediatamente a sessão autenticada para o usuário entrar sem travar
-      aplicarSessaoAutenticada();
-
-      // Carrega dados iniciais em segundo plano de forma protegida
-      try {
-        await carregarDadosIniciais();
-      } catch (dadosErr) {
-        console.warn('Aviso ao carregar dados iniciais:', dadosErr);
-      }
+      setSessionData(res.token, res.user);
 
       // Verifica troca obrigatória de senha
       if (res.user && (res.user.forcar_troca_senha === true || String(res.user.forcar_troca_senha).toUpperCase() === 'SIM')) {
@@ -291,19 +374,40 @@ var App = (function() {
   /**
    * Logout
    */
-  async function fazerLogout() {
+  async function fazerLogout(motivo = null) {
     try {
       if (STATE.token) {
         await rpc('apiLogout', STATE.token);
       }
     } catch (e) {}
 
-    try { sessionStorage.clear(); } catch (e) {}
+    try {
+      sessionStorage.removeItem('cbm_session_token');
+      sessionStorage.removeItem('cbm_session_user');
+      sessionStorage.removeItem('cbm_last_activity');
+    } catch (e) {}
+
     STATE.token = null;
     STATE.user = null;
-    document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('login-senha').value = '';
-    showToast('Você saiu do sistema.', 'info');
+
+    const loginScreen = document.getElementById('login-screen');
+    if (loginScreen) {
+      loginScreen.style.removeProperty('display');
+      loginScreen.style.display = 'flex';
+    }
+    const senhaInput = document.getElementById('login-senha');
+    if (senhaInput) senhaInput.value = '';
+
+    if (motivo) {
+      showToast(motivo, 'warning', 6000);
+      const errBox = document.getElementById('login-error-alert');
+      if (errBox) {
+        errBox.innerText = motivo;
+        errBox.style.display = 'block';
+      }
+    } else {
+      showToast('Você saiu do sistema.', 'info');
+    }
   }
 
   /**
@@ -352,12 +456,26 @@ var App = (function() {
 
   /**
    * Carrega metadados iniciais (Grupamentos, SGBs, Postos, Graduações)
+   * Utiliza cache em sessionStorage para renderização imediata (0ms)
    */
   async function carregarDadosIniciais() {
-    const res = await rpc('apiGetInitialData', STATE.token);
-    if (res && res.success) {
-      STATE.initialData = res;
-      popularSelectsGrupamentoEPosto(res);
+    // 1. Carrega do Cache imediatamente se disponível
+    const cached = Cache.get('initial_data', 30 * 60 * 1000);
+    if (cached) {
+      STATE.initialData = cached;
+      try { popularSelectsGrupamentoEPosto(cached); } catch (e) {}
+    }
+
+    // 2. Busca dados atualizados no servidor
+    try {
+      const res = await rpc('apiGetInitialData', STATE.token);
+      if (res && res.success) {
+        STATE.initialData = res;
+        Cache.set('initial_data', res);
+        popularSelectsGrupamentoEPosto(res);
+      }
+    } catch (e) {
+      console.warn('Aviso ao sincronizar dados iniciais:', e);
     }
   }
 
@@ -1091,10 +1209,17 @@ var App = (function() {
 
     try {
       let lista = (!forceRefresh && STATE.initialData && STATE.initialData.catalogoMateriais) ? STATE.initialData.catalogoMateriais : [];
+      if (!lista || lista.length === 0) {
+        const cached = Cache.get('catalogo_materiais', 30 * 60 * 1000);
+        if (cached && Array.isArray(cached) && cached.length > 0) {
+          lista = cached;
+        }
+      }
       if (!lista || lista.length === 0 || forceRefresh) {
         const res = await rpc('apiGetCatalogoMateriais', STATE.token);
         if (res.success && res.catalogo) {
           lista = res.catalogo;
+          Cache.set('catalogo_materiais', lista);
           if (STATE.initialData) STATE.initialData.catalogoMateriais = lista;
         }
       }
@@ -1220,12 +1345,22 @@ var App = (function() {
   }
 
   async function carregarViaturasDaFrota(pbId = null, sgb = null, forceRefresh = false) {
+    const cacheKey = 'frota_' + (sgb || 'all') + '_' + (pbId || 'all');
     try {
+      if (!forceRefresh) {
+        const cached = Cache.get(cacheKey, 10 * 60 * 1000);
+        if (cached && Array.isArray(cached) && cached.length > 0) {
+          if (STATE.initialData) STATE.initialData.viaturasFrota = cached;
+          return cached;
+        }
+      }
+
       let frotas = (!forceRefresh && STATE.initialData && STATE.initialData.viaturasFrota) ? STATE.initialData.viaturasFrota : [];
       if (!frotas || frotas.length === 0 || forceRefresh) {
         const res = await rpc('apiListViaturasFrota', sgb, pbId, STATE.token);
         if (res && res.success && res.viaturas) {
           frotas = res.viaturas;
+          Cache.set(cacheKey, frotas);
           if (STATE.initialData) STATE.initialData.viaturasFrota = frotas;
         }
       }
@@ -1845,98 +1980,108 @@ var App = (function() {
   // ========================================================================
 
   function abrirNovoRegistro() {
-    STATE.currentRegistroId = null;
-    STATE.currentRegistroData = null;
-
-    document.getElementById('form-titulo').innerText = 'Novo Livro de Registro';
-    document.getElementById('form-subtitulo').innerText = 'Preencha o cabeçalho e as seções para iniciar o serviço';
-    document.getElementById('reg-id').value = '';
-    document.getElementById('reg-numero').value = '';
-
-    // Data de hoje padrão
-    const hoje = new Date().toISOString().split('T')[0];
-    document.getElementById('reg-data-inicio').value = hoje;
-    document.getElementById('reg-hora-inicio').value = '07:30';
-
-    onDataInicioChange();
-
-    // Limpa seções
-    STATE.complementosList = [];
-    renderComplementosLista();
-    atualizarAutossomaPessoal();
-    document.getElementById('sec1-complemento').value = '';
-
-    // Seção 2: Carrega catálogo permanente
-    carregarCatalogoMateriais();
-    document.getElementById('sec2-outros').value = '';
-
-    document.getElementById('sec3-novidade').value = '';
-
-    // Seção 4: Viaturas com guarnição iniciam limpas para seleção sob demanda
-    STATE.viaturasCards = [];
-    const containerVtr = document.getElementById('container-viaturas');
-    if (containerVtr) containerVtr.innerHTML = '';
-    verificarEstadoVazioViaturas();
-    atualizarTotaisViaturas();
-    const sgbVal = document.getElementById('reg-sgb').value;
-    const pbVal = document.getElementById('reg-pb').value;
-    carregarViaturasDaFrota(pbVal, sgbVal);
-
-    document.getElementById('sec5-ordem-dia').value = '';
-    document.getElementById('sec6-verbais').value = '';
-    document.getElementById('sec6-escritas').value = '';
-
-    document.getElementById('sec7-treinamento').value = '';
-    document.getElementById('sec7-pops').value = '';
-    document.getElementById('sec7-instrutor-re').value = '';
-    document.getElementById('sec7-instrutor-nome').value = '';
-    document.getElementById('sec7-participantes').value = '';
-    document.getElementById('sec7-materiais').value = '';
-    document.getElementById('sec7-observacoes').value = '';
-
-    document.getElementById('sec8-assunto').value = '';
-    document.getElementById('sec8-instrutor-re').value = '';
-    document.getElementById('sec8-instrutor-nome').value = '';
-    document.getElementById('sec8-participantes').value = '';
-    document.getElementById('sec8-literatura').value = '';
-    document.getElementById('sec8-observacoes').value = '';
-
-    document.getElementById('sec9-atividades').value = '';
-    if (document.getElementById('sec9-local')) {
-      document.getElementById('sec9-local').value = '';
-      atualizarPreviewMapaLocal('');
-    }
-    document.getElementById('sec9-instrutor-re').value = '';
-    document.getElementById('sec9-instrutor-nome').value = '';
-    document.getElementById('sec9-observacoes').value = '';
-
-    document.getElementById('sec10-limpeza').value = '';
-    document.getElementById('sec10-melhoria').value = '';
-    document.getElementById('sec10-energia').value = '';
-    document.getElementById('sec10-hidrometro').value = '';
-
-    document.getElementById('sec11-ocorrencias').value = '';
-
-    document.getElementById('container-rondas').innerHTML = '';
-    // Adiciona 2 rondas padrão como no documento
-    adicionarRonda(1, 'Ronda Diurna', '', '10:00');
-    adicionarRonda(2, 'Ronda Noturna', '', '22:00');
-
-    // Limpa e pré-preenche conferências
-    renderConferencias(null);
-    const confSai = document.getElementById('conf-input-sai-re');
-    if (confSai) confSai.value = '';
-    const confPb = document.getElementById('conf-input-pb-re');
-    if (confPb) confPb.value = '';
-    const confEntra = document.getElementById('conf-input-entra-re');
-    if (confEntra) {
-      confEntra.value = (STATE.user && STATE.user.re) || '';
-      buscarAutoridadeConf('entra', confEntra.value);
-    }
-
-    document.getElementById('btn-finalizar-registro').style.display = 'none';
-
+    // 1. Alterna visualização IMEDIATAMENTE para resposta instantânea ao clique
     navegarPara('view-registro-form');
+
+    // 2. Prepara e limpa o formulário de forma totalmente protegida contra falhas
+    try {
+      STATE.currentRegistroId = null;
+      STATE.currentRegistroData = null;
+
+      const formTit = document.getElementById('form-titulo');
+      if (formTit) formTit.innerText = 'Novo Livro de Registro';
+      const formSub = document.getElementById('form-subtitulo');
+      if (formSub) formSub.innerText = 'Preencha o cabeçalho e as seções para iniciar o serviço';
+      const regId = document.getElementById('reg-id');
+      if (regId) regId.value = '';
+      const regNum = document.getElementById('reg-numero');
+      if (regNum) regNum.value = '';
+
+      // Data de hoje padrão
+      const hoje = new Date().toISOString().split('T')[0];
+      const dataIni = document.getElementById('reg-data-inicio');
+      if (dataIni) dataIni.value = hoje;
+      const horaIni = document.getElementById('reg-hora-inicio');
+      if (horaIni) horaIni.value = '07:30';
+
+      try { onDataInicioChange(); } catch (e) {}
+
+      // Limpa seções
+      STATE.complementosList = [];
+      try { renderComplementosLista(); } catch (e) {}
+      try { atualizarAutossomaPessoal(); } catch (e) {}
+      const sec1Comp = document.getElementById('sec1-complemento');
+      if (sec1Comp) sec1Comp.value = '';
+
+      // Seção 2: Carrega catálogo permanente
+      try { carregarCatalogoMateriais(); } catch (e) {}
+      const sec2Outros = document.getElementById('sec2-outros');
+      if (sec2Outros) sec2Outros.value = '';
+
+      const sec3Nov = document.getElementById('sec3-novidade');
+      if (sec3Nov) sec3Nov.value = '';
+
+      // Seção 4: Viaturas com guarnição iniciam limpas para seleção sob demanda
+      STATE.viaturasCards = [];
+      const containerVtr = document.getElementById('container-viaturas');
+      if (containerVtr) containerVtr.innerHTML = '';
+      try { verificarEstadoVazioViaturas(); } catch (e) {}
+      try { atualizarTotaisViaturas(); } catch (e) {}
+
+      const sgbEl = document.getElementById('reg-sgb');
+      const pbEl = document.getElementById('reg-pb');
+      const sgbVal = sgbEl ? sgbEl.value : '';
+      const pbVal = pbEl ? pbEl.value : '';
+      try { carregarViaturasDaFrota(pbVal, sgbVal); } catch (e) {}
+
+      // Limpa demais seções defensivamente
+      const camposLimpar = [
+        'sec5-ordem-dia', 'sec6-verbais', 'sec6-escritas',
+        'sec7-treinamento', 'sec7-pops', 'sec7-instrutor-re', 'sec7-instrutor-nome',
+        'sec7-participantes', 'sec7-materiais', 'sec7-observacoes',
+        'sec8-assunto', 'sec8-instrutor-re', 'sec8-instrutor-nome',
+        'sec8-participantes', 'sec8-literatura', 'sec8-observacoes',
+        'sec9-atividades', 'sec9-local', 'sec9-instrutor-re', 'sec9-instrutor-nome', 'sec9-observacoes',
+        'sec10-limpeza', 'sec10-melhoria', 'sec10-energia', 'sec10-hidrometro',
+        'sec11-ocorrencias'
+      ];
+      camposLimpar.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+
+      if (typeof atualizarPreviewMapaLocal === 'function') {
+        try { atualizarPreviewMapaLocal(''); } catch (e) {}
+      }
+
+      const cr = document.getElementById('container-rondas');
+      if (cr) {
+        cr.innerHTML = '';
+        try {
+          adicionarRonda(1, 'Ronda Diurna', '', '10:00');
+          adicionarRonda(2, 'Ronda Noturna', '', '22:00');
+        } catch (e) {}
+      }
+
+      // Limpa e pré-preenche conferências
+      try { renderConferencias(null); } catch (e) {}
+      const confSai = document.getElementById('conf-input-sai-re');
+      if (confSai) confSai.value = '';
+      const confPb = document.getElementById('conf-input-pb-re');
+      if (confPb) confPb.value = '';
+      const confEntra = document.getElementById('conf-input-entra-re');
+      if (confEntra) {
+        confEntra.value = (STATE.user && STATE.user.re) || '';
+        try { buscarAutoridadeConf('entra', confEntra.value); } catch (e) {}
+      }
+
+      const btnFin = document.getElementById('btn-finalizar-registro');
+      if (btnFin) btnFin.style.display = 'none';
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      console.error('Erro ao preparar formulário de novo registro:', err);
+    }
   }
 
   function voltarDoFormulario() {
@@ -2334,6 +2479,7 @@ var App = (function() {
       const saveRes = await rpc('apiSaveRegistro', regId, payload, STATE.token);
 
       if (saveRes.success) {
+        Cache.clear('dashboard_stats');
         preencherFormularioComRegistro(saveRes.registro);
         document.getElementById('form-save-indicator').innerText = 'Salvo com sucesso';
         showToast(isDraft ? 'Rascunho salvo com sucesso.' : 'Registro salvo e sincronizado na planilha.', 'success');
@@ -2635,27 +2781,58 @@ var App = (function() {
   // DASHBOARD & CONSULTAS
   // ========================================================================
 
-  async function carregarDashboard() {
+  async function carregarDashboard(forceRefresh = false) {
+    // 1. Tenta carregar do Cache primeiro (0ms de latência)
+    if (!forceRefresh) {
+      const cached = Cache.get('dashboard_stats', 60 * 1000);
+      if (cached) {
+        aplicarDashboardStats(cached);
+      }
+    }
+
+    // 2. Busca dados atualizados no servidor
     try {
       const res = await rpc('apiGetDashboardStats', {}, STATE.token);
-      if (res.success && res.stats) {
-        const s = res.stats;
-        document.getElementById('kpi-total').innerText = s.kpi.total;
-        document.getElementById('kpi-preenchimento').innerText = s.kpi.em_preenchimento;
-        document.getElementById('kpi-conferencia').innerText = s.kpi.aguardando_conferencia;
-        document.getElementById('kpi-finalizados').innerText = s.kpi.finalizados;
-
-        document.getElementById('pront-verde-count').innerText = s.porProntidao.Verde || 0;
-        document.getElementById('pront-amarela-count').innerText = s.porProntidao.Amarela || 0;
-        document.getElementById('pront-azul-count').innerText = s.porProntidao.Azul || 0;
-        document.getElementById('militares-count').innerText = s.militaresAtivos || 0;
-
-        document.getElementById('dashboard-timestamp').innerText = 'Atualizado em ' + new Date().toLocaleTimeString('pt-BR');
-
-        renderTabelaUltimos(s.ultimosRegistros);
+      if (res && res.success && res.stats) {
+        Cache.set('dashboard_stats', res.stats);
+        aplicarDashboardStats(res.stats);
       }
     } catch (e) {
-      console.error(e);
+      console.error('Erro ao buscar estatísticas do dashboard:', e);
+    }
+  }
+
+  function aplicarDashboardStats(s) {
+    if (!s) return;
+    try {
+      if (s.kpi) {
+        const kTotal = document.getElementById('kpi-total');
+        if (kTotal) kTotal.innerText = s.kpi.total ?? 0;
+        const kPreench = document.getElementById('kpi-preenchimento');
+        if (kPreench) kPreench.innerText = s.kpi.em_preenchimento ?? 0;
+        const kConf = document.getElementById('kpi-conferencia');
+        if (kConf) kConf.innerText = s.kpi.aguardando_conferencia ?? 0;
+        const kFin = document.getElementById('kpi-finalizados');
+        if (kFin) kFin.innerText = s.kpi.finalizados ?? 0;
+      }
+
+      if (s.porProntidao) {
+        const pVerde = document.getElementById('pront-verde-count');
+        if (pVerde) pVerde.innerText = s.porProntidao.Verde ?? 0;
+        const pAmarela = document.getElementById('pront-amarela-count');
+        if (pAmarela) pAmarela.innerText = s.porProntidao.Amarela ?? 0;
+        const pAzul = document.getElementById('pront-azul-count');
+        if (pAzul) pAzul.innerText = s.porProntidao.Azul ?? 0;
+      }
+      const mCount = document.getElementById('militares-count');
+      if (mCount) mCount.innerText = s.militaresAtivos ?? 0;
+
+      const timeEl = document.getElementById('dashboard-timestamp');
+      if (timeEl) timeEl.innerText = 'Atualizado em ' + new Date().toLocaleTimeString('pt-BR');
+
+      renderTabelaUltimos(s.ultimosRegistros);
+    } catch (err) {
+      console.error('Erro ao aplicar estatísticas do dashboard:', err);
     }
   }
 
@@ -2671,13 +2848,24 @@ var App = (function() {
     tbody.innerHTML = '';
     registros.forEach(r => {
       const tr = document.createElement('tr');
+      const numReg = r.numero_registro || 'S/N';
+      const dtIni = Utils.formatDateBR(r.data_inicio);
+      const hrIni = r.hora_inicio || '07:30';
+      const dtFim = Utils.formatDateBR(r.data_termino);
+      const hrFim = r.hora_termino || '07:30';
+      const pront = r.prontidao || 'Verde';
+      const sgbPb = `${r.sgb || ''} • ${r.pb_nome || ''}`.trim().replace(/^•\s*/, '');
+      const cmt = `${r.cmt_graduacao || ''} ${r.cmt_re || ''} ${r.cmt_nome || ''}`.trim() || '-';
+      const statusTxt = r.status || 'Em preenchimento';
+      const statusBadgeClass = statusTxt.toLowerCase().replace(/\s+/g, '-');
+
       tr.innerHTML = `
-        <td style="font-weight: 700; color: #fff;">${r.numero_registro}</td>
-        <td>${Utils.formatDateBR(r.data_inicio)} (${r.hora_inicio}) a ${Utils.formatDateBR(r.data_termino)} (${r.hora_termino})</td>
-        <td><span class="badge-prontidao badge-prontidao-${r.prontidao ? r.prontidao.toLowerCase() : 'verde'}">${r.prontidao}</span></td>
-        <td>${r.sgb} • ${r.pb_nome}</td>
-        <td>${r.cmt_graduacao || ''} ${r.cmt_re || ''} ${r.cmt_nome || ''}</td>
-        <td><span class="status-badge badge-${r.status.toLowerCase().replace(/\s+/g, '-')}">${r.status}</span></td>
+        <td style="font-weight: 700; color: #fff;">${numReg}</td>
+        <td>${dtIni} (${hrIni}) a ${dtFim} (${hrFim})</td>
+        <td><span class="badge-prontidao badge-prontidao-${pront.toLowerCase()}">${pront}</span></td>
+        <td>${sgbPb}</td>
+        <td>${cmt}</td>
+        <td><span class="status-badge badge-${statusBadgeClass}">${statusTxt}</span></td>
         <td style="text-align: right; white-space: nowrap;">
           <button class="btn btn-secondary btn-sm" onclick="App.carregarRegistroPorId('${r.id}')">Abrir</button>
           <button class="btn btn-secondary btn-sm" onclick="App.imprimirRegistroPorId('${r.id}')">🖨️</button>
@@ -2715,8 +2903,12 @@ var App = (function() {
 
   function renderTabelaConsulta(data) {
     const tbody = document.getElementById('tbody-consulta-registros');
-    document.getElementById('consulta-total-display').innerText = `${data.total} registros encontrados`;
-    document.getElementById('paginacao-info').innerText = `Página ${data.page} de ${data.totalPages || 1}`;
+    if (!tbody) return;
+
+    const totalDisp = document.getElementById('consulta-total-display');
+    if (totalDisp) totalDisp.innerText = `${data.total || 0} registros encontrados`;
+    const pagInfo = document.getElementById('paginacao-info');
+    if (pagInfo) pagInfo.innerText = `Página ${data.page || 1} de ${data.totalPages || 1}`;
 
     if (!data.items || data.items.length === 0) {
       tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">Nenhum registro encontrado para os filtros selecionados.</td></tr>';
@@ -2727,15 +2919,26 @@ var App = (function() {
     data.items.forEach(r => {
       const tr = document.createElement('tr');
       const podeCancelar = STATE.user && STATE.user.perfil === 'admin' && r.status !== 'Cancelado';
+      const numReg = r.numero_registro || 'S/N';
+      const dtIni = Utils.formatDateBR(r.data_inicio);
+      const hrIni = r.hora_inicio || '07:30';
+      const dtFim = Utils.formatDateBR(r.data_termino);
+      const hrFim = r.hora_termino || '07:30';
+      const pront = r.prontidao || 'Verde';
+      const sgbPb = `${r.sgb || ''} • ${r.pb_nome || ''}`.trim().replace(/^•\s*/, '');
+      const cmt = `${r.cmt_graduacao || ''} ${r.cmt_re || ''} ${r.cmt_nome || ''}`.trim() || '-';
+      const statusTxt = r.status || 'Em preenchimento';
+      const statusBadgeClass = statusTxt.toLowerCase().replace(/\s+/g, '-');
+      const atualizadoEm = r.atualizado_em ? new Date(r.atualizado_em).toLocaleString('pt-BR') : '-';
 
       tr.innerHTML = `
-        <td style="font-weight: 700; color: #fff;">${r.numero_registro}</td>
-        <td>${Utils.formatDateBR(r.data_inicio)} (${r.hora_inicio}) a ${Utils.formatDateBR(r.data_termino)} (${r.hora_termino})</td>
-        <td><span class="badge-prontidao badge-prontidao-${r.prontidao ? r.prontidao.toLowerCase() : 'verde'}">${r.prontidao}</span></td>
-        <td>${r.sgb} • ${r.pb_nome}</td>
-        <td>${r.cmt_graduacao || ''} ${r.cmt_re || ''} ${r.cmt_nome || ''}</td>
-        <td><span class="status-badge badge-${r.status.toLowerCase().replace(/\s+/g, '-')}">${r.status}</span></td>
-        <td style="font-size: 0.8rem; color: var(--text-muted);">${r.atualizado_em ? new Date(r.atualizado_em).toLocaleString('pt-BR') : '-'}</td>
+        <td style="font-weight: 700; color: #fff;">${numReg}</td>
+        <td>${dtIni} (${hrIni}) a ${dtFim} (${hrFim})</td>
+        <td><span class="badge-prontidao badge-prontidao-${pront.toLowerCase()}">${pront}</span></td>
+        <td>${sgbPb}</td>
+        <td>${cmt}</td>
+        <td><span class="status-badge badge-${statusBadgeClass}">${statusTxt}</span></td>
+        <td style="font-size: 0.8rem; color: var(--text-muted);">${atualizadoEm}</td>
         <td style="text-align: right; white-space: nowrap;">
           <button class="btn btn-secondary btn-sm" onclick="App.carregarRegistroPorId('${r.id}')">Visualizar</button>
           <button class="btn btn-secondary btn-sm" onclick="App.imprimirRegistroPorId('${r.id}')">🖨️</button>
@@ -2747,20 +2950,22 @@ var App = (function() {
 
     // Renderiza botões de paginação
     const bts = document.getElementById('paginacao-botoes');
-    bts.innerHTML = '';
-    if (data.page > 1) {
-      const prev = document.createElement('button');
-      prev.className = 'btn btn-secondary btn-sm';
-      prev.innerText = '← Anterior';
-      prev.onclick = () => executarPesquisaConsulta(data.page - 1);
-      bts.appendChild(prev);
-    }
-    if (data.page < data.totalPages) {
-      const next = document.createElement('button');
-      next.className = 'btn btn-secondary btn-sm';
-      next.innerText = 'Próxima →';
-      next.onclick = () => executarPesquisaConsulta(data.page + 1);
-      bts.appendChild(next);
+    if (bts) {
+      bts.innerHTML = '';
+      if (data.page > 1) {
+        const prev = document.createElement('button');
+        prev.className = 'btn btn-secondary btn-sm';
+        prev.innerText = '← Anterior';
+        prev.onclick = () => executarPesquisaConsulta(data.page - 1);
+        bts.appendChild(prev);
+      }
+      if (data.page < (data.totalPages || 1)) {
+        const next = document.createElement('button');
+        next.className = 'btn btn-secondary btn-sm';
+        next.innerText = 'Próxima →';
+        next.onclick = () => executarPesquisaConsulta(data.page + 1);
+        bts.appendChild(next);
+      }
     }
   }
 
@@ -3226,13 +3431,23 @@ var App = (function() {
     salvarPostoModal: salvarPostoModal,
     carregarAuditLogs: carregarAuditLogs,
     exportarBackup: exportarBackup,
-    executarBootstrapAutorizado: executarBootstrapAutorizado
+    executarBootstrapAutorizado: executarBootstrapAutorizado,
+    setSessionData: setSessionData,
+    Utils: Utils,
+    Cache: Cache
   };
 })();
 
 // Exposição global explícita para ambientes sandboxed (Apps Script iframe / Webview)
 if (typeof window !== 'undefined') {
   window.App = App;
+  window.Utils = window.App.Utils;
+  window.Cache = window.App.Cache;
+  window.setSessionData = function(token, user) { return App.setSessionData(token, user); };
+  window.abrirNovoRegistro = function() { return App.abrirNovoRegistro(); };
+  window.navegarPara = function(v) { return App.navegarPara(v); };
+  window.carregarDashboard = function(f) { return App.carregarDashboard(f); };
+  window.fazerLogout = function(m) { return App.fazerLogout(m); };
 }
 if (typeof globalThis !== 'undefined') {
   globalThis.App = App;

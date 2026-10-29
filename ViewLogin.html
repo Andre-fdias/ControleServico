@@ -2,6 +2,19 @@
      TELA DE LOGIN DEDICADA (Identidade Visual SisFolgas)
      Acesso inicial por RE + RE ou admin + admin com troca obrigatória de senha.
      ======================================================================== -->
+<script>
+(function() {
+  try {
+    var token = sessionStorage.getItem('cbm_session_token');
+    var lastActive = parseInt(sessionStorage.getItem('cbm_last_activity') || '0', 10);
+    var now = Date.now();
+    var isExpired = lastActive > 0 && (now - lastActive > 10 * 60 * 1000);
+    if (token && !isExpired) {
+      document.write('<style id="anti-login-flicker">#login-screen { display: none !important; }</style>');
+    }
+  } catch (e) {}
+})();
+</script>
 <section id="login-screen" class="login-screen" style="display: flex;">
   <div class="login-card-container">
     <div class="login-brand-header">
@@ -170,26 +183,30 @@
       try {
         sessionStorage.setItem('cbm_session_token', resposta.token);
         sessionStorage.setItem('cbm_session_user', JSON.stringify(resposta.user));
+        sessionStorage.setItem('cbm_last_activity', String(Date.now()));
       } catch (e) {}
 
-      // Oculta tela de login imediatamente
-      var loginScreen = document.getElementById('login-screen');
-      if (loginScreen) loginScreen.style.display = 'none';
+      // Se o App estiver disponível, inicializa com sincronia de dados e dashboard
+      if (window.App && typeof window.App.setSessionData === 'function') {
+        window.App.setSessionData(resposta.token, resposta.user);
+      } else {
+        // Fallback caso App ainda esteja carregando
+        var loginScreen = document.getElementById('login-screen');
+        if (loginScreen) loginScreen.style.display = 'none';
 
-      // Atualiza cabeçalho do usuário
-      var headerRe = document.getElementById('header-user-re');
-      var headerNome = document.getElementById('header-user-nome');
-      var headerRole = document.getElementById('header-user-role-tag');
-      if (headerRe) headerRe.innerText = resposta.user.re;
-      if (headerNome) headerNome.innerText = resposta.user.nome_completo;
-      if (headerRole) {
-        headerRole.innerText = resposta.user.perfil.toUpperCase();
-        headerRole.className = 'user-role-tag role-' + resposta.user.perfil;
-      }
+        var headerRe = document.getElementById('header-user-re');
+        var headerNome = document.getElementById('header-user-nome');
+        var headerRole = document.getElementById('header-user-role-tag');
+        if (headerRe) headerRe.innerText = resposta.user.re;
+        if (headerNome) headerNome.innerText = resposta.user.nome_completo;
+        if (headerRole) {
+          headerRole.innerText = resposta.user.perfil.toUpperCase();
+          headerRole.className = 'user-role-tag role-' + resposta.user.perfil;
+        }
 
-      // Se o App já estiver carregado ou carregar logo em seguida
-      if (window.App && typeof window.App.aplicarSessaoAutenticada === 'function') {
-        window.App.aplicarSessaoAutenticada();
+        if (window.App && typeof window.App.aplicarSessaoAutenticada === 'function') {
+          window.App.aplicarSessaoAutenticada();
+        }
       }
 
       // Verifica troca obrigatória de senha
