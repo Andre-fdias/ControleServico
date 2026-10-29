@@ -978,45 +978,73 @@ const App = (function() {
   // ========================================================================
   STATE.viaturasCards = [];
 
-  async function carregarViaturasDaFrota(pbId = null, sgb = null, forceRefresh = false) {
-    const container = document.getElementById('container-viaturas');
-    if (!container) return;
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
 
+  async function carregarViaturasDaFrota(pbId = null, sgb = null, forceRefresh = false) {
     try {
       let frotas = (!forceRefresh && STATE.initialData && STATE.initialData.viaturasFrota) ? STATE.initialData.viaturasFrota : [];
       if (!frotas || frotas.length === 0 || forceRefresh) {
         const res = await rpc('apiListViaturasFrota', sgb, pbId, STATE.token);
-        if (res.success && res.viaturas && res.viaturas.length > 0) {
+        if (res && res.success && res.viaturas) {
           frotas = res.viaturas;
           if (STATE.initialData) STATE.initialData.viaturasFrota = frotas;
         }
       }
-
-      container.innerHTML = '';
-      STATE.viaturasCards = [];
-
-      (frotas || []).forEach(v => {
-        adicionarCardViatura({
-          prefixo: v.prefixo,
-          situacao: v.status || v.situacao || 'Operando',
-          estacao: v.estacao || '',
-          km: v.km || '',
-          observacoes: v.km ? `KM: ${v.km}` : '',
-          comandante_re: '',
-          comandante_nome: '',
-          motorista_re: '',
-          motorista_nome: '',
-          auxiliares: []
-        });
-      });
-      atualizarTotaisViaturas();
+      return frotas || [];
     } catch (e) {
-      console.error(e);
+      console.error('Erro ao listar viaturas da frota:', e);
+      return [];
+    }
+  }
+
+  function verificarEstadoVazioViaturas() {
+    const container = document.getElementById('container-viaturas');
+    if (!container) return;
+    const cardsAtivos = (STATE.viaturasCards || []).filter(v => v && v.prefixo !== undefined);
+    const existingEmpty = document.getElementById('vtr-empty-state');
+
+    if (cardsAtivos.length === 0) {
+      if (!existingEmpty) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.id = 'vtr-empty-state';
+        emptyDiv.style.cssText = 'text-align: center; padding: 2.25rem 1.5rem; background: rgba(17, 24, 39, 0.4); border: 2px dashed rgba(255, 255, 255, 0.12); border-radius: var(--radius-md); margin-bottom: 1rem;';
+        emptyDiv.innerHTML = `
+          <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">🚒</div>
+          <h4 style="color: var(--text-primary); font-size: 1rem; margin-bottom: 0.25rem; font-weight: 700;">Nenhuma viatura escalada para o serviço</h4>
+          <p style="color: var(--text-muted); font-size: 0.85rem; max-width: 480px; margin: 0 auto 1.25rem auto;">
+            Clique no botão abaixo para abrir a frota e escolher quais viaturas comporão a guarnição operacional hoje.
+          </p>
+          <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+            <button type="button" class="btn btn-primary btn-sm" onclick="App.abrirModalSelecionarViatura()">
+              🚒 Selecionar Viaturas da Frota
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="App.adicionarViaturaManual()">
+              ✍️ Inserir Prefixo Manual
+            </button>
+          </div>
+        `;
+        container.innerHTML = '';
+        container.appendChild(emptyDiv);
+      }
+    } else {
+      if (existingEmpty) {
+        existingEmpty.remove();
+      }
     }
   }
 
   function adicionarCardViatura(data = {}) {
     const container = document.getElementById('container-viaturas');
+    const existingEmpty = document.getElementById('vtr-empty-state');
+    if (existingEmpty) existingEmpty.remove();
     const vtrIdx = STATE.viaturasCards.length;
 
     const vData = {
@@ -1155,6 +1183,7 @@ const App = (function() {
     if (card) card.remove();
     delete STATE.viaturasCards[vtrIdx];
     atualizarTotaisViaturas();
+    verificarEstadoVazioViaturas();
   }
 
   function adicionarViaturaManual() {
@@ -1167,6 +1196,198 @@ const App = (function() {
       auxiliares: []
     });
     atualizarTotaisViaturas();
+  }
+
+  // ========================================================================
+  // SELEÇÃO DE VIATURAS DA FROTA SOB DEMANDA (MODAL)
+  // ========================================================================
+  async function abrirModalSelecionarViatura() {
+    abrirModal('modal-selecionar-viatura');
+    const filtroInput = document.getElementById('filtro-vtr-modal');
+    if (filtroInput) filtroInput.value = '';
+    const statusSelect = document.getElementById('filtro-vtr-status-modal');
+    if (statusSelect) statusSelect.value = '';
+
+    const checkPosto = document.getElementById('filtro-vtr-meu-posto');
+    const selPb = document.getElementById('reg-pb');
+    const pbNome = (selPb && selPb.selectedOptions && selPb.selectedOptions[0]) ? selPb.selectedOptions[0].text : '';
+    const labelPosto = document.getElementById('label-filtro-meu-posto');
+    if (labelPosto) {
+      labelPosto.innerText = pbNome ? `Apenas ${pbNome}` : 'Apenas do meu Posto';
+    }
+    if (checkPosto) {
+      checkPosto.checked = !!pbNome;
+    }
+
+    await renderListaViaturasModal();
+  }
+
+  async function recarregarFrotaViaturasModal() {
+    const contador = document.getElementById('vtr-modal-contador');
+    if (contador) contador.innerText = 'Atualizando frota da planilha...';
+    const sgbVal = document.getElementById('reg-sgb') ? document.getElementById('reg-sgb').value : null;
+    const pbVal = document.getElementById('reg-pb') ? document.getElementById('reg-pb').value : null;
+    await carregarViaturasDaFrota(pbVal, sgbVal, true);
+    await renderListaViaturasModal();
+    showToast('Frota de viaturas atualizada da planilha!', 'success');
+  }
+
+  function filtrarViaturasModal() {
+    renderListaViaturasModal();
+  }
+
+  async function renderListaViaturasModal() {
+    const container = document.getElementById('lista-viaturas-modal');
+    const contador = document.getElementById('vtr-modal-contador');
+    if (!container) return;
+
+    let frotas = (STATE.initialData && STATE.initialData.viaturasFrota) ? STATE.initialData.viaturasFrota : [];
+    if (!frotas || frotas.length === 0) {
+      container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);">Carregando viaturas da frota...</div>';
+      const sgbVal = document.getElementById('reg-sgb') ? document.getElementById('reg-sgb').value : null;
+      const pbVal = document.getElementById('reg-pb') ? document.getElementById('reg-pb').value : null;
+      frotas = await carregarViaturasDaFrota(pbVal, sgbVal);
+    }
+
+    if (!frotas || frotas.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+          <p>Nenhuma viatura localizada na planilha de frota.</p>
+          <div style="display: flex; gap: 0.5rem; justify-content: center; margin-top: 0.5rem;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="App.recarregarFrotaViaturasModal()">🔄 Tentar Novamente</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="App.adicionarViaturaManual(); App.fecharModal('modal-selecionar-viatura');">✍️ Inserir Manual</button>
+          </div>
+        </div>
+      `;
+      if (contador) contador.innerText = '0 viaturas';
+      return;
+    }
+
+    const filtroTexto = (document.getElementById('filtro-vtr-modal')?.value || '').trim().toLowerCase();
+    const filtroStatus = (document.getElementById('filtro-vtr-status-modal')?.value || '').trim().toLowerCase();
+    const apenasMeuPosto = document.getElementById('filtro-vtr-meu-posto')?.checked;
+
+    const selPb = document.getElementById('reg-pb');
+    const pbNome = (selPb && selPb.selectedOptions && selPb.selectedOptions[0]) ? selPb.selectedOptions[0].text.toLowerCase().trim() : '';
+    const selSgb = document.getElementById('reg-sgb');
+    const sgbNome = selSgb ? selSgb.value.toLowerCase().trim() : '';
+
+    const viaturasFiltradas = frotas.filter(v => {
+      const pref = String(v.prefixo || '').toLowerCase();
+      const est = String(v.estacao || '').toLowerCase();
+      const sgb = String(v.sgb || '').toLowerCase();
+      const st = String(v.status || 'Operando').toLowerCase();
+
+      if (filtroTexto) {
+        const matchText = pref.includes(filtroTexto) || est.includes(filtroTexto) || sgb.includes(filtroTexto);
+        if (!matchText) return false;
+      }
+
+      if (filtroStatus) {
+        if (!st.includes(filtroStatus)) return false;
+      }
+
+      if (apenasMeuPosto && (pbNome || sgbNome)) {
+        const matchPb = pbNome && (est.includes(pbNome) || pbNome.includes(est));
+        const matchSgb = sgbNome && (sgb.includes(sgbNome) || sgbNome.includes(sgb));
+        if (!matchPb && !matchSgb) return false;
+      }
+
+      return true;
+    });
+
+    if (contador) {
+      contador.innerText = `Exibindo ${viaturasFiltradas.length} de ${frotas.length} viaturas`;
+    }
+
+    if (viaturasFiltradas.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 2rem; color: var(--text-muted); background: rgba(255,255,255,0.02); border-radius: var(--radius-sm);">
+          <p style="margin-bottom: 0.5rem;">Nenhuma viatura encontrada com os filtros aplicados.</p>
+          <div style="display: flex; gap: 0.5rem; justify-content: center;">
+            ${apenasMeuPosto ? `<button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('filtro-vtr-meu-posto').checked = false; App.filtrarViaturasModal();">Mostrar Todas as Viaturas</button>` : ''}
+            <button type="button" class="btn btn-secondary btn-sm" onclick="App.adicionarViaturaManual(); App.fecharModal('modal-selecionar-viatura');">➕ Inserir Prefixo Manual</button>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = '';
+    viaturasFiltradas.forEach(v => {
+      const st = v.status || 'Operando';
+      let statusColor = '#34d399';
+      let statusBg = 'rgba(16, 185, 129, 0.15)';
+      if (st === 'Baixada') {
+        statusColor = '#ef4444';
+        statusBg = 'rgba(239, 68, 68, 0.15)';
+      } else if (st === 'Reserva') {
+        statusColor = '#fbbf24';
+        statusBg = 'rgba(245, 158, 11, 0.15)';
+      } else if (st === 'Acidentada') {
+        statusColor = '#c084fc';
+        statusBg = 'rgba(147, 51, 234, 0.15)';
+      }
+
+      const jaEscalada = (STATE.viaturasCards || []).some(c => c && c.prefixo && c.prefixo.trim().toUpperCase() === String(v.prefixo).trim().toUpperCase());
+
+      const item = document.createElement('div');
+      item.className = 'vtr-modal-item';
+      item.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 0.85rem; min-width: 0;">
+          <div style="font-size: 1.6rem; line-height: 1; flex-shrink: 0;">🚒</div>
+          <div style="min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+              <span style="font-family: var(--font-heading); font-weight: 800; font-size: 1.05rem; color: #fff;">${escapeHtml(v.prefixo)}</span>
+              <span class="status-badge" style="background: ${statusBg}; color: ${statusColor}; font-size: 0.72rem; padding: 2px 7px;">${escapeHtml(st)}</span>
+            </div>
+            <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+              ${v.estacao ? `<span>📍 <strong>${escapeHtml(v.estacao)}</strong></span>` : ''}
+              ${v.sgb ? `<span>🛡️ ${escapeHtml(v.sgb)}</span>` : ''}
+              ${v.km ? `<span>⏱️ KM: <strong>${escapeHtml(v.km)}</strong></span>` : ''}
+            </div>
+          </div>
+        </div>
+        <div style="flex-shrink: 0;">
+          ${jaEscalada ? `
+            <span class="vtr-badge-added">
+              ✓ Na Escala
+            </span>
+          ` : `
+            <button type="button" class="btn btn-primary btn-sm" onclick="App.selecionarViaturaDaFrota('${escapeHtml(v.prefixo)}')">
+              ➕ Adicionar
+            </button>
+          `}
+        </div>
+      `;
+      container.appendChild(item);
+    });
+  }
+
+  function selecionarViaturaDaFrota(prefixo) {
+    const frotas = (STATE.initialData && STATE.initialData.viaturasFrota) ? STATE.initialData.viaturasFrota : [];
+    const v = frotas.find(item => item && String(item.prefixo).trim().toUpperCase() === String(prefixo).trim().toUpperCase());
+
+    const jaExiste = (STATE.viaturasCards || []).some(c => c && c.prefixo && c.prefixo.trim().toUpperCase() === String(prefixo).trim().toUpperCase());
+    if (jaExiste) {
+      showToast(`A viatura ${prefixo} já foi adicionada ao serviço.`, 'info');
+      return;
+    }
+
+    adicionarCardViatura({
+      prefixo: (v && v.prefixo) ? v.prefixo : prefixo,
+      situacao: (v && v.status) ? v.status : 'Operando',
+      estacao: (v && v.estacao) ? v.estacao : '',
+      km: (v && v.km) ? v.km : '',
+      observacoes: (v && v.km) ? `KM: ${v.km}` : '',
+      comandante_re: '',
+      motorista_re: '',
+      auxiliares: []
+    });
+
+    atualizarTotaisViaturas();
+    showToast(`Viatura ${prefixo} adicionada à escala!`, 'success');
+    renderListaViaturasModal();
   }
 
   async function buscarMilitarGuarnicao(input, role, vtrIdx, auxIdx = null) {
@@ -1420,7 +1641,12 @@ const App = (function() {
 
     document.getElementById('sec3-novidade').value = '';
 
-    // Seção 4: Carrega viaturas da frota da unidade com slots de guarnição
+    // Seção 4: Viaturas com guarnição iniciam limpas para seleção sob demanda
+    STATE.viaturasCards = [];
+    const containerVtr = document.getElementById('container-viaturas');
+    if (containerVtr) containerVtr.innerHTML = '';
+    verificarEstadoVazioViaturas();
+    atualizarTotaisViaturas();
     const sgbVal = document.getElementById('reg-sgb').value;
     const pbVal = document.getElementById('reg-pb').value;
     carregarViaturasDaFrota(pbVal, sgbVal);
@@ -1564,11 +1790,12 @@ const App = (function() {
 
     // Seção 4: Situação de Viaturas com Guarnição
     const containerVtr = document.getElementById('container-viaturas');
-    containerVtr.innerHTML = '';
+    if (containerVtr) containerVtr.innerHTML = '';
     STATE.viaturasCards = [];
     if (data.viaturas && Array.isArray(data.viaturas.viaturas) && data.viaturas.viaturas.length > 0) {
       data.viaturas.viaturas.forEach(v => adicionarCardViatura(v));
     } else {
+      verificarEstadoVazioViaturas();
       carregarViaturasDaFrota(h.pb_id, h.sgb);
     }
     atualizarTotaisViaturas();
@@ -2705,6 +2932,11 @@ const App = (function() {
     removerAuxiliarViatura: removerAuxiliarViatura,
     removerViaturaCard: removerViaturaCard,
     adicionarViaturaManual: adicionarViaturaManual,
+    abrirModalSelecionarViatura: abrirModalSelecionarViatura,
+    filtrarViaturasModal: filtrarViaturasModal,
+    recarregarFrotaViaturasModal: recarregarFrotaViaturasModal,
+    selecionarViaturaDaFrota: selecionarViaturaDaFrota,
+    verificarEstadoVazioViaturas: verificarEstadoVazioViaturas,
     buscarMilitarGuarnicao: buscarMilitarGuarnicao,
     abrirModalMilitarRapido: abrirModalMilitarRapido,
     salvarMilitarRapidoModal: salvarMilitarRapidoModal,
