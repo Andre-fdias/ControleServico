@@ -90,6 +90,13 @@ var Database = (function() {
         let val = row[index];
         if (val === undefined || val === null) {
           val = '';
+        } else if (val instanceof Date) {
+          if (!isNaN(val.getTime())) {
+            const iso = val.toISOString();
+            val = iso.includes('T00:00:00.000Z') ? iso.split('T')[0] : iso;
+          } else {
+            val = '';
+          }
         } else if (typeof val === 'string' && val.startsWith("'") && /^[=+\-@]/.test(val.slice(1))) {
           val = val.slice(1); // Remove prefixo de proteção de fórmula na leitura
         }

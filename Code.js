@@ -162,12 +162,12 @@ function apiBootstrapSystem() {
   SecoesOperacionais.ensureDefaultCatalogo();
   const seedReport = SeedData.populateSeedData();
 
-  return {
+  return JSON.stringify({
     success: true,
     message: 'Sistema inicializado com sucesso.',
     schema: schemaReport,
     seeds: seedReport
-  };
+  });
 }
 
 /**
@@ -200,17 +200,17 @@ function apiLogin(username, password) {
 function apiLogout(token) {
   try {
     Session.destroy(token);
-    return { success: true };
+    return JSON.stringify({ success: true });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
 function apiChangePassword(token, senhaAtual, novaSenha, confirmaNovaSenha) {
   try {
-    return Auth.changePassword(token, senhaAtual, novaSenha, confirmaNovaSenha);
+    return JSON.stringify(Auth.changePassword(token, senhaAtual, novaSenha, confirmaNovaSenha));
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
@@ -247,12 +247,12 @@ function apiGetInitialData(token) {
 
 function apiCalculateProntidao(dataInicio, horaInicio) {
   try {
-    return {
+    return JSON.stringify({
       success: true,
       data: Prontidao.calcularPeriodoEProntidao(dataInicio, horaInicio)
-    };
+    });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
@@ -264,22 +264,22 @@ function apiFindMilitarByRE(re) {
   try {
     const militar = Militares.findByRE(re);
     if (!militar) {
-      return { success: false, message: 'Militar não encontrado para o RE informado.' };
+      return JSON.stringify({ success: false, message: 'Militar não encontrado para o RE informado.' });
     }
-    return { success: true, militar: militar };
+    return JSON.stringify({ success: true, militar: militar });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
 function apiSearchMilitares(query) {
   try {
-    return {
+    return JSON.stringify({
       success: true,
       results: Militares.search(query, 12)
-    };
+    });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
@@ -290,9 +290,10 @@ function apiSearchMilitares(query) {
 function apiCreateRegistro(payload, token) {
   try {
     const sessionUser = _requireSession(token);
-    return RegistroAtividades.create(payload, sessionUser);
+    const res = RegistroAtividades.create(payload, sessionUser);
+    return JSON.stringify(res);
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
@@ -300,9 +301,9 @@ function apiSaveRegistro(registroId, payload, token) {
   try {
     const sessionUser = _requireSession(token);
     const updated = RegistroAtividades.saveComplete(registroId, payload, sessionUser);
-    return { success: true, registro: updated };
+    return JSON.stringify({ success: true, registro: updated });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
@@ -311,11 +312,11 @@ function apiGetRegistro(registroId, token) {
     _requireSession(token);
     const reg = RegistroAtividades.getById(registroId);
     if (!reg) {
-      return { success: false, message: 'Registro não encontrado.' };
+      return JSON.stringify({ success: false, message: 'Registro não encontrado.' });
     }
-    return { success: true, registro: reg };
+    return JSON.stringify({ success: true, registro: reg });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
@@ -323,9 +324,9 @@ function apiFinalizarRegistro(registroId, token) {
   try {
     const sessionUser = _requireSession(token);
     const res = RegistroAtividades.finalizar(registroId, sessionUser);
-    return { success: true, registro: res };
+    return JSON.stringify({ success: true, registro: res });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
@@ -333,9 +334,9 @@ function apiCancelarRegistro(registroId, motivo, token) {
   try {
     const sessionUser = _requireSession(token);
     const res = RegistroAtividades.cancelar(registroId, motivo, sessionUser);
-    return { success: true, registro: res };
+    return JSON.stringify({ success: true, registro: res });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
@@ -343,9 +344,9 @@ function apiQueryRegistros(filters, token) {
   try {
     const sessionUser = _requireSession(token);
     const results = RegistroAtividades.queryRegistros(filters, sessionUser);
-    return { success: true, data: results };
+    return JSON.stringify({ success: true, data: results });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
@@ -353,9 +354,9 @@ function apiValidarConferencia(registroId, papelKey, token, observacoes) {
   try {
     const sessionUser = _requireSession(token);
     const res = Conferencias.validarConferencia(registroId, papelKey, sessionUser, observacoes);
-    return { success: true, data: res };
+    return JSON.stringify({ success: true, data: res });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
@@ -367,9 +368,9 @@ function apiGetDashboardStats(filters, token) {
   try {
     _requireSession(token);
     const stats = Reports.getDashboardStats(filters);
-    return { success: true, stats: stats };
+    return JSON.stringify({ success: true, stats: stats });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
@@ -380,9 +381,9 @@ function apiGetDashboardStats(filters, token) {
 function apiListMilitares(token) {
   try {
     _requireSession(token);
-    return { success: true, militares: Militares.listAll() };
+    return JSON.stringify({ success: true, militares: Militares.listAll() });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
@@ -391,49 +392,49 @@ function apiSaveMilitar(data, token) {
     const sessionUser = _requireSession(token);
     if (data.id) {
       const updated = Militares.updateMilitar(data.id, data, sessionUser);
-      return { success: true, militar: updated };
+      return JSON.stringify({ success: true, militar: updated });
     } else {
       const created = Militares.createMilitar(data, sessionUser);
-      return { success: true, militar: created };
+      return JSON.stringify({ success: true, militar: created });
     }
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
 function apiListUsuarios(token) {
   try {
     const sessionUser = _requireSession(token);
-    return { success: true, usuarios: Users.listAll(sessionUser) };
+    return JSON.stringify({ success: true, usuarios: Users.listAll(sessionUser) });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
 function apiResetPassword(userId, token) {
   try {
     const sessionUser = _requireSession(token);
-    return Users.resetPassword(userId, sessionUser);
+    return JSON.stringify(Users.resetPassword(userId, sessionUser));
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
 function apiUnlockUser(userId, token) {
   try {
     const sessionUser = _requireSession(token);
-    return Users.unlockUser(userId, sessionUser);
+    return JSON.stringify(Users.unlockUser(userId, sessionUser));
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
 function apiListPostos(filters, token) {
   try {
     _requireSession(token);
-    return { success: true, postos: Unidades.listPostos(filters) };
+    return JSON.stringify({ success: true, postos: Unidades.listPostos(filters) });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
@@ -442,13 +443,13 @@ function apiSavePosto(data, token) {
     const sessionUser = _requireSession(token);
     if (data.id) {
       const updated = Unidades.updatePosto(data.id, data, sessionUser);
-      return { success: true, posto: updated };
+      return JSON.stringify({ success: true, posto: updated });
     } else {
       const created = Unidades.createPosto(data, sessionUser);
-      return { success: true, posto: created };
+      return JSON.stringify({ success: true, posto: created });
     }
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
@@ -456,18 +457,18 @@ function apiGetAuditLogs(filters, token) {
   try {
     const sessionUser = _requireSession(token);
     Authorization.requirePermission(sessionUser, 'CONSULTAR_AUDITORIA');
-    return { success: true, logs: Audit.query(filters) };
+    return JSON.stringify({ success: true, logs: Audit.query(filters) });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 
 function apiGetFullBackup(token) {
   try {
     const sessionUser = _requireSession(token);
-    return { success: true, backup: Backup.exportFullBackup(sessionUser) };
+    return JSON.stringify({ success: true, backup: Backup.exportFullBackup(sessionUser) });
   } catch (e) {
-    return { success: false, message: e.message };
+    return JSON.stringify({ success: false, message: e.message || String(e) });
   }
 }
 

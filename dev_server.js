@@ -181,7 +181,11 @@ const server = http.createServer(async (req, res) => {
         try {
           const result = await Code[action](...args);
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(result));
+          if (typeof result === 'string') {
+            res.end(result);
+          } else {
+            res.end(JSON.stringify(result));
+          }
         } catch (err) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: false, message: err.message }));
