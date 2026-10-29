@@ -33,29 +33,29 @@
 
       <div id="login-error-alert" class="login-error-alert" style="display: none;"></div>
 
-      <form id="form-login" onsubmit="event.preventDefault(); App.fazerLogin();">
+      <form id="form-login" onsubmit="event.preventDefault(); if(typeof fazerLogin==='function'){fazerLogin();}else if(window.App){window.App.fazerLogin();} return false;">
         <div class="form-group">
           <label class="form-label" for="login-re">Identificador (Número do RE):</label>
           <div class="input-with-icon">
             <span class="input-icon">👤</span>
-            <input type="text" class="form-input" id="login-re" placeholder="Ex: 108154 ou admin" required autocomplete="username" autofocus>
+            <input type="text" class="form-input" id="login-re" placeholder="Ex: 108154 ou admin" required autocomplete="username" autofocus onkeydown="if(event.key==='Enter'){event.preventDefault(); if(typeof fazerLogin==='function'){fazerLogin();}else if(window.App){window.App.fazerLogin();}}">
           </div>
         </div>
 
         <div class="form-group">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <label class="form-label" for="login-senha" style="margin-bottom: 0.4rem;">Senha de Acesso:</label>
-            <button type="button" onclick="App.togglePasswordVisibility('login-senha', this)" style="background: none; border: none; color: var(--text-muted); font-size: 0.78rem; cursor: pointer; padding: 0;">
+            <button type="button" onclick="if(typeof togglePasswordVisibility==='function'){togglePasswordVisibility('login-senha', this);}else if(window.App){window.App.togglePasswordVisibility('login-senha', this);}" style="background: none; border: none; color: var(--text-muted); font-size: 0.78rem; cursor: pointer; padding: 0;">
               👁️ Mostrar
             </button>
           </div>
           <div class="input-with-icon">
             <span class="input-icon">🔑</span>
-            <input type="password" class="form-input" id="login-senha" placeholder="Digite seu RE ou sua senha" required autocomplete="current-password">
+            <input type="password" class="form-input" id="login-senha" placeholder="Digite seu RE ou sua senha" required autocomplete="current-password" onkeydown="if(event.key==='Enter'){event.preventDefault(); if(typeof fazerLogin==='function'){fazerLogin();}else if(window.App){window.App.fazerLogin();}}">
           </div>
         </div>
 
-        <button type="submit" class="btn btn-primary btn-login-submit" id="btn-login-submit">
+        <button type="button" class="btn btn-primary btn-login-submit" id="btn-login-submit" onclick="if(typeof fazerLogin==='function'){fazerLogin();}else if(window.App){window.App.fazerLogin();}">
           Entrar no Sistema
         </button>
       </form>
